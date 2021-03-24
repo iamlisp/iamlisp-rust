@@ -1,7 +1,7 @@
 pub enum Token {
-    Symbol(&'static Vec<char>),
-    String(&'static Vec<char>),
-    Punctuator(&'static char),
+    Symbol(Vec<char>),
+    String(Vec<char>),
+    Punctuator(char),
 }
 
 pub struct Reader<'a> {
@@ -27,6 +27,6 @@ impl<'a> Reader<'a> {
     }
 }
 
-fn tokenize<'a>(reader: &'a Reader) -> Vec<&'a Token> {
-    Vec::<&'a Token>::default()
+fn tokenize(reader: &Reader) -> Vec<Token> {
+    Vec::<Token>::default()
 }
