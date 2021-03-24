@@ -1,3 +1,7 @@
+const DELIMITERS: [char; 4] = [
+    '\r', ' ', '\n', '\t'
+];
+
 pub enum Token {
     Symbol(Vec<char>),
     String(Vec<char>),
