@@ -1,19 +1,20 @@
 pub enum Token {
-    String(&'static str),
-    Punctuator(&'static str),
+    Symbol(&'static Vec<char>),
+    String(&'static Vec<char>),
+    Punctuator(&'static char),
 }
 
-pub struct Reader {
-    program: &'static Vec<char>,
+pub struct Reader<'a> {
+    program: &'a Vec<char>,
     cursor: usize,
 }
 
-impl Reader {
-    pub fn new(program: &'static Vec<char>) -> Self {
+impl<'a> Reader<'a> {
+    pub fn new(program: &'a Vec<char>) -> Self {
         Reader { program, cursor: 0 }
     }
 
-    pub fn current(&self) -> Option<&'static char> {
+    pub fn current(&self) -> Option<&'a char> {
         self.program.get(self.cursor)
     }
 
@@ -26,6 +27,6 @@ impl Reader {
     }
 }
 
-fn tokenize(reader: Reader) -> Vec<Token> {
-    Vec::<Token>::default()
+fn tokenize<'a>(reader: &'a Reader) -> Vec<&'a Token> {
+    Vec::<&'a Token>::default()
 }
