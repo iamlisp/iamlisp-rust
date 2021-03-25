@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::iter::FromIterator;
 
 lazy_static! {
     static ref DELIMITER_CHARS: HashSet<char> = vec![' ', '\t', '\n', '\r'].into_iter().collect();
@@ -166,8 +167,15 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                 }
 
                 // TODO Interpret numbers, booleans, etc...
+
                 if chars.len() == 1 && chars[0] == '.' {
                     tokens.push(Token::Dot)
+                } else if let Ok(bool) = String::from_iter(&chars).parse::<bool>() {
+                    tokens.push(Token::Boolean(bool));
+                } else if let Ok(integer) = String::from_iter(&chars).parse::<isize>() {
+                    tokens.push(Token::Integer(integer));
+                } else if let Ok(float) = String::from_iter(&chars).parse::<f32>() {
+                    tokens.push(Token::Float(float));
                 } else {
                     tokens.push(Token::Symbol(chars));
                 }
@@ -234,7 +242,7 @@ mod tests {
 
     #[test]
     fn read_symbol() {
-        let program: Vec<char> = "foo bar baz 123 11.22 true false".chars().collect();
+        let program: Vec<char> = "foo bar baz . 123 11.22 true false".chars().collect();
         let mut reader = Reader::new(&program);
 
         assert_eq!(
@@ -242,10 +250,11 @@ mod tests {
                 Token::Symbol("foo".chars().collect()),
                 Token::Symbol("bar".chars().collect()),
                 Token::Symbol("baz".chars().collect()),
-                Token::Symbol("123".chars().collect()),
-                Token::Symbol("11.22".chars().collect()),
-                Token::Symbol("true".chars().collect()),
-                Token::Symbol("false".chars().collect()),
+                Token::Dot,
+                Token::Integer(123),
+                Token::Float(11.22),
+                Token::Boolean(true),
+                Token::Boolean(false),
             ]),
             tokenize(&mut reader)
         );
@@ -262,10 +271,10 @@ mod tests {
                 Token::Symbol("+".chars().collect()),
                 Token::LeftParen,
                 Token::Symbol("foo".chars().collect()),
-                Token::Symbol("1".chars().collect()),
+                Token::Integer(1),
                 Token::String("hello".chars().collect()),
                 Token::RightParen,
-                Token::Symbol("12.5".chars().collect()),
+                Token::Float(12.5),
                 Token::RightParen
             ]),
             tokenize(&mut reader)
