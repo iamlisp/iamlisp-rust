@@ -50,6 +50,7 @@ enum TokenizerState {
     Outside,
     InsideString,
     InsideSymbol,
+    InsideComment,
 }
 
 fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
@@ -76,6 +77,38 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                         tokens.push(Token::RightParen);
                         reader.goto_next_char();
                     }
+                    Some('{') => {
+                        tokens.push(Token::LeftBracket);
+                        reader.goto_next_char();
+                    }
+                    Some('}') => {
+                        tokens.push(Token::RightBracket);
+                        reader.goto_next_char();
+                    }
+                    Some('[') => {
+                        tokens.push(Token::LeftSquareBracket);
+                        reader.goto_next_char();
+                    }
+                    Some(']') => {
+                        tokens.push(Token::RightSquareBracket);
+                        reader.goto_next_char();
+                    }
+                    Some('^') => {
+                        tokens.push(Token::Caret);
+                        reader.goto_next_char();
+                    }
+                    Some('#') => {
+                        tokens.push(Token::Sharp);
+                        reader.goto_next_char();
+                    }
+                    Some('\'') => {
+                        tokens.push(Token::SingleQuote);
+                        reader.goto_next_char();
+                    }
+                    Some(';') => {
+                        tokenizer_state = TokenizerState::InsideComment;
+                        reader.goto_next_char();
+                    }
                     Some(_) => {
                         tokenizer_state = TokenizerState::InsideSymbol;
                     }
@@ -96,8 +129,6 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                             reader.goto_next_char();
                         }
                         Some('"') => {
-                            tokens.push(Token::String(chars));
-                            tokenizer_state = TokenizerState::Outside;
                             reader.goto_next_char();
                             break;
                         }
@@ -112,6 +143,9 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                         None => return Err("Unexpected end of input on reading string".to_owned()),
                     }
                 }
+
+                tokens.push(Token::String(chars));
+                tokenizer_state = TokenizerState::Outside;
             }
             TokenizerState::InsideSymbol => {
                 let mut chars = vec![];
@@ -138,6 +172,19 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                     tokens.push(Token::Symbol(chars));
                 }
 
+                tokenizer_state = TokenizerState::Outside;
+            }
+            TokenizerState::InsideComment => {
+                loop {
+                    match reader.current_char() {
+                        Some('\n') | None => {
+                            break;
+                        }
+                        Some(_) => {
+                            reader.goto_next_char();
+                        }
+                    }
+                }
                 tokenizer_state = TokenizerState::Outside;
             }
         }
