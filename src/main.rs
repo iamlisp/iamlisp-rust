@@ -1,3 +1,4 @@
+mod eval;
 mod read;
 
 #[macro_use]

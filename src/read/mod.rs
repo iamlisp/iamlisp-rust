@@ -1,3 +1,2 @@
-mod read;
+mod reader;
 mod tokenizer;
-
