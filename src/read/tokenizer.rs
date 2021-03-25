@@ -11,7 +11,7 @@ pub enum Token {
     String(Vec<char>),
     LeftParen,
     RightParen,
-    Dot
+    Dot,
 }
 
 pub struct Reader<'a> {
@@ -36,7 +36,7 @@ impl<'a> Reader<'a> {
 enum TokenizerState {
     Outside,
     InsideString,
-    InsideSymbol
+    InsideSymbol,
 }
 
 fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
@@ -65,12 +65,12 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                     }
                     Some(_) => {
                         tokenizer_state = TokenizerState::InsideSymbol;
-                    },
+                    }
                     None => {
                         return Ok(tokens);
                     }
                 }
-            },
+            }
             TokenizerState::InsideString => {
                 let mut chars = vec![];
                 let mut escape = false;
@@ -81,38 +81,31 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                             chars.push('"');
                             escape = false;
                             reader.goto_next_char();
-                        },
+                        }
                         Some('"') => {
                             tokens.push(Token::String(chars));
                             tokenizer_state = TokenizerState::Outside;
                             reader.goto_next_char();
                             break;
-                        },
+                        }
                         Some('\\') => {
                             escape = true;
                             reader.goto_next_char();
-                        },
+                        }
                         Some(c) => {
                             chars.push(c.clone());
                             reader.goto_next_char();
-                        },
-                        None => {
-                            return Err("Unexpected end of input on reading string".to_owned())
-                        },
+                        }
+                        None => return Err("Unexpected end of input on reading string".to_owned()),
                     }
                 }
-            },
+            }
             TokenizerState::InsideSymbol => {
+                let mut chars = vec![];
+
                 loop {
-                    let mut chars = vec![];
                     match reader.current_char() {
                         Some(c) if DELIMITER_CHARS.contains(c) || NON_SYMBOL_CHARS.contains(c) => {
-                            if chars.len() == 1 && chars[0] == '.' {
-                                tokens.push(Token::Dot)
-                            } else {
-                                tokens.push(Token::Symbol(chars));
-                            }
-                            tokenizer_state = TokenizerState::Outside;
                             break;
                         }
                         Some(c) => {
@@ -120,12 +113,19 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                             reader.goto_next_char();
                         }
                         None => {
-                            tokenizer_state = TokenizerState::Outside;
                             break;
                         }
                     }
                 }
-            },
+
+                if chars.len() == 1 && chars[0] == '.' {
+                    tokens.push(Token::Dot)
+                } else {
+                    tokens.push(Token::Symbol(chars));
+                }
+
+                tokenizer_state = TokenizerState::Outside;
+            }
         }
     }
 }
@@ -145,20 +145,69 @@ mod tests {
     fn read_parens() {
         let program: Vec<char> = "()".chars().collect();
         let mut reader = Reader::new(&program);
-        assert_eq!(Ok(vec![Token::LeftParen, Token::RightParen]), tokenize(&mut reader));
+        assert_eq!(
+            Ok(vec![Token::LeftParen, Token::RightParen]),
+            tokenize(&mut reader)
+        );
     }
 
     #[test]
     fn read_string() {
         let program: Vec<char> = "\"hello world\"".chars().collect();
         let mut reader = Reader::new(&program);
-        assert_eq!(Ok(vec![Token::String("hello world".chars().collect())]), tokenize(&mut reader));
+        assert_eq!(
+            Ok(vec![Token::String("hello world".chars().collect())]),
+            tokenize(&mut reader)
+        );
     }
 
     #[test]
     fn read_escaped_string() {
         let program: Vec<char> = "\"program \\\"lisp\\\"\"".chars().collect();
         let mut reader = Reader::new(&program);
-        assert_eq!(Ok(vec![Token::String("program \"lisp\"".chars().collect())]), tokenize(&mut reader));
+        assert_eq!(
+            Ok(vec![Token::String("program \"lisp\"".chars().collect())]),
+            tokenize(&mut reader)
+        );
+    }
+
+    #[test]
+    fn read_symbol() {
+        let program: Vec<char> = "foo bar baz 123 11.22 true false".chars().collect();
+        let mut reader = Reader::new(&program);
+
+        assert_eq!(
+            Ok(vec![
+                Token::Symbol("foo".chars().collect()),
+                Token::Symbol("bar".chars().collect()),
+                Token::Symbol("baz".chars().collect()),
+                Token::Symbol("123".chars().collect()),
+                Token::Symbol("11.22".chars().collect()),
+                Token::Symbol("true".chars().collect()),
+                Token::Symbol("false".chars().collect()),
+            ]),
+            tokenize(&mut reader)
+        );
+    }
+
+    #[test]
+    fn read_whole_program() {
+        let program: Vec<char> = "(+ (foo 1 \"hello\") 12.5)".chars().collect();
+        let mut reader = Reader::new(&program);
+
+        assert_eq!(
+            Ok(vec![
+                Token::LeftParen,
+                Token::Symbol("+".chars().collect()),
+                Token::LeftParen,
+                Token::Symbol("foo".chars().collect()),
+                Token::Symbol("1".chars().collect()),
+                Token::String("hello".chars().collect()),
+                Token::RightParen,
+                Token::Symbol("12.5".chars().collect()),
+                Token::RightParen
+            ]),
+            tokenize(&mut reader)
+        );
     }
 }
