@@ -2,15 +2,28 @@ use std::collections::HashSet;
 
 lazy_static! {
     static ref DELIMITER_CHARS: HashSet<char> = vec![' ', '\t', '\n', '\r'].into_iter().collect();
-    static ref NON_SYMBOL_CHARS: HashSet<char> = vec!['(', ')', '"', '\''].into_iter().collect();
+    static ref NON_SYMBOL_CHARS: HashSet<char> =
+        vec!['(', ')', '{', '}', '[', ']', '"', '\'', '^', '\'', '#', ';']
+            .into_iter()
+            .collect();
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Symbol(Vec<char>),
     String(Vec<char>),
+    Integer(isize),
+    Float(f32),
+    Boolean(bool),
     LeftParen,
     RightParen,
+    LeftBracket,
+    RightBracket,
+    LeftSquareBracket,
+    RightSquareBracket,
+    Caret,
+    SingleQuote,
+    Sharp,
     Dot,
 }
 
@@ -118,6 +131,7 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                     }
                 }
 
+                // TODO Interpret numbers, booleans, etc...
                 if chars.len() == 1 && chars[0] == '.' {
                     tokens.push(Token::Dot)
                 } else {
