@@ -49,6 +49,7 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                 match reader.current_char() {
                     Some('"') => {
                         tokenizer_state = TokenizerState::InsideString;
+                        reader.goto_next_char();
                     }
                     Some(c) if DELIMITER_CHARS.contains(c) => {
                         // Skip delimiters
@@ -83,17 +84,17 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                         },
                         Some('"') => {
                             tokens.push(Token::String(chars));
+                            tokenizer_state = TokenizerState::Outside;
                             reader.goto_next_char();
                             break;
                         },
-                        Some('/') => {
+                        Some('\\') => {
                             escape = true;
                             reader.goto_next_char();
                         },
                         Some(c) => {
                             chars.push(c.clone());
                             reader.goto_next_char();
-                            break;
                         },
                         None => {
                             return Err("Unexpected end of input on reading string".to_owned())
@@ -145,5 +146,19 @@ mod tests {
         let program: Vec<char> = "()".chars().collect();
         let mut reader = Reader::new(&program);
         assert_eq!(Ok(vec![Token::LeftParen, Token::RightParen]), tokenize(&mut reader));
+    }
+
+    #[test]
+    fn read_string() {
+        let program: Vec<char> = "\"hello world\"".chars().collect();
+        let mut reader = Reader::new(&program);
+        assert_eq!(Ok(vec![Token::String("hello world".chars().collect())]), tokenize(&mut reader));
+    }
+
+    #[test]
+    fn read_escaped_string() {
+        let program: Vec<char> = "\"program \\\"lisp\\\"\"".chars().collect();
+        let mut reader = Reader::new(&program);
+        assert_eq!(Ok(vec![Token::String("program \"lisp\"".chars().collect())]), tokenize(&mut reader));
     }
 }
