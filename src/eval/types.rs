@@ -61,8 +61,13 @@ impl Iterator for ListIter {
 }
 
 #[derive(Clone)]
+pub(crate) enum Value {
+    I64(i64),
+}
+
+#[derive(Clone)]
 pub(crate) enum Expression {
-    Int(i64),
+    Value(Value),
     List(Box<List>),
     Nil,
 }
@@ -85,9 +90,12 @@ mod tests {
 
     #[test]
     fn one_item_iter() {
-        let mut iter = List::new(Expression::Nil, List::Empty).into_iter();
+        let mut iter = List::new(Expression::Value(Value::I64(0)), List::Empty).into_iter();
 
-        assert!(matches!(iter.next(), Some(Expression::Nil)));
+        assert!(matches!(
+            iter.next(),
+            Some(Expression::Value(Value::I64(0)))
+        ));
         assert!(matches!(iter.next(), None));
     }
 
