@@ -1,4 +1,4 @@
-use std::fmt::{format, Display, Formatter};
+use std::fmt::{Display, Formatter};
 
 #[derive(Clone)]
 pub(crate) enum List {
@@ -32,6 +32,28 @@ impl List {
 
     pub(crate) fn is_empty(&self) -> bool {
         matches!(self, List::Empty)
+    }
+
+    pub(crate) fn unshift_mut(&mut self, value: Expression) {
+        *self = List::Normal {
+            car: value,
+            cdr: Box::new(self.clone()),
+        }
+    }
+
+    pub(crate) fn push_mut(&mut self, value: Expression) {
+        match self {
+            List::Empty => self.unshift_mut(value),
+            List::Normal { cdr, .. } => cdr.push_mut(value),
+        }
+    }
+
+    pub(crate) fn take_mut(&mut self) -> Option<Expression> {
+        let value = self.car().cloned();
+
+        *self = self.cdr().clone();
+
+        value
     }
 }
 
@@ -91,18 +113,40 @@ impl Iterator for ListIter {
 }
 
 #[derive(Clone)]
+pub(crate) struct Env {}
+
+impl Env {
+    pub(crate) fn new() -> Self {
+        Self {}
+    }
+
+    pub(crate) fn get(&self, name: &str) -> Expression {
+        Expression::Value(Value::String(name.to_string()))
+    }
+}
+
+#[derive(Clone)]
 pub(crate) enum Value {
     Int64(i64),
     Float64(f64),
     String(String),
     Nil,
+    Lambda {
+        env: Env,
+        args: Box<List>,
+        body: Box<List>,
+    },
+    Macro {
+        args: Box<List>,
+        body: Box<List>,
+    },
 }
 
 #[derive(Clone)]
 pub(crate) enum Expression {
     Value(Value),
     List(Box<List>),
-    Symbol(String),
+    Symbol(&'static str),
 }
 
 impl Display for Expression {
@@ -114,6 +158,28 @@ impl Display for Expression {
             Expression::Value(Value::String(s)) => format!("{}", s),
             Expression::Value(Value::Nil) => "Nil".to_string(),
             Expression::Symbol(s) => format!("{}", s),
+            Expression::Value(Value::Lambda { args, body, env: _ }) => {
+                format!(
+                    "(lambda {} {})",
+                    args,
+                    body.clone()
+                        .into_iter()
+                        .map(|e| format!("{}", e))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )
+            }
+            Expression::Value(Value::Macro { args, body }) => {
+                format!(
+                    "(macro {} {})",
+                    args,
+                    body.clone()
+                        .into_iter()
+                        .map(|e| format!("{}", e))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                )
+            }
         };
 
         write!(f, "{}", str)
