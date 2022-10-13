@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt::format;
 
 #[derive(Clone)]
 pub(crate) enum List {
@@ -44,6 +45,23 @@ impl IntoIterator for List {
     }
 }
 
+impl ToString for List {
+    fn to_string(&self) -> String {
+        let mut str = String::new();
+        str.push_str("(");
+        str.push_str(
+            &*self
+                .clone()
+                .into_iter()
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(" "),
+        );
+        str.push_str(")");
+        str
+    }
+}
+
 pub(crate) struct ListIter {
     list: List,
 }
@@ -70,6 +88,16 @@ pub(crate) enum Expression {
     Value(Value),
     List(Box<List>),
     Nil,
+}
+
+impl ToString for Expression {
+    fn to_string(&self) -> String {
+        match self {
+            Expression::Nil => "Nil".to_string(),
+            Expression::List(l) => l.to_string(),
+            Expression::Value(Value::I64(i)) => format!("{}", i),
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -107,5 +135,18 @@ mod tests {
         assert!(matches!(iter.next(), Some(Expression::Nil)));
         assert!(matches!(iter.next(), Some(Expression::Nil)));
         assert!(matches!(iter.next(), None));
+    }
+
+    #[test]
+    fn list_to_string() {
+        assert_eq!("()", EMPTY_LIST.to_string());
+        assert_eq!(
+            "(0 1)",
+            List::new(
+                Expression::Value(Value::I64(0)),
+                List::new(Expression::Value(Value::I64(1)), List::Empty)
+            )
+            .to_string()
+        );
     }
 }
