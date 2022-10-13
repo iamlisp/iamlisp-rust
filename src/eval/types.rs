@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::format;
+use std::fmt::{format, Display, Formatter};
 
 #[derive(Clone)]
 pub(crate) enum List {
@@ -45,20 +45,21 @@ impl IntoIterator for List {
     }
 }
 
-impl ToString for List {
-    fn to_string(&self) -> String {
+impl Display for List {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut str = String::new();
         str.push_str("(");
         str.push_str(
             &*self
                 .clone()
                 .into_iter()
-                .map(|i| i.to_string())
+                .map(|i| format!("{}", i))
                 .collect::<Vec<_>>()
                 .join(" "),
         );
         str.push_str(")");
-        str
+
+        write!(f, "{}", str)
     }
 }
 
@@ -90,13 +91,15 @@ pub(crate) enum Expression {
     Nil,
 }
 
-impl ToString for Expression {
-    fn to_string(&self) -> String {
-        match self {
+impl Display for Expression {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
             Expression::Nil => "Nil".to_string(),
-            Expression::List(l) => l.to_string(),
+            Expression::List(l) => format!("{}", l),
             Expression::Value(Value::I64(i)) => format!("{}", i),
-        }
+        };
+
+        write!(f, "{}", str)
     }
 }
 
