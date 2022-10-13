@@ -35,13 +35,26 @@ impl List {
     }
 }
 
-impl Iterator for List {
+impl IntoIterator for List {
+    type Item = Expression;
+    type IntoIter = ListIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ListIter { list: self }
+    }
+}
+
+pub(crate) struct ListIter {
+    list: List,
+}
+
+impl Iterator for ListIter {
     type Item = Expression;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let current = self.car().cloned();
+        let current = self.list.car().cloned();
 
-        *self = self.cdr().clone();
+        self.list = self.list.cdr().clone();
 
         current
     }
@@ -65,26 +78,26 @@ mod tests {
 
     #[test]
     fn empty_iter() {
-        let vec = List::Empty.into_iter().collect::<Vec<_>>();
+        let mut iter = List::Empty.into_iter();
 
-        assert_eq!(vec.len(), 0);
+        assert!(matches!(iter.next(), None));
     }
 
     #[test]
     fn one_item_iter() {
-        let vec = List::new(Expression::Nil, List::Empty)
-            .into_iter()
-            .collect::<Vec<_>>();
+        let mut iter = List::new(Expression::Nil, List::Empty).into_iter();
 
-        assert_eq!(vec.len(), 1);
+        assert!(matches!(iter.next(), Some(Expression::Nil)));
+        assert!(matches!(iter.next(), None));
     }
 
     #[test]
     fn two_items_iter() {
-        let vec = List::new(Expression::Nil, List::new(Expression::Nil, List::Empty))
-            .into_iter()
-            .collect::<Vec<_>>();
+        let mut iter =
+            List::new(Expression::Nil, List::new(Expression::Nil, List::Empty)).into_iter();
 
-        assert_eq!(vec.len(), 2);
+        assert!(matches!(iter.next(), Some(Expression::Nil)));
+        assert!(matches!(iter.next(), Some(Expression::Nil)));
+        assert!(matches!(iter.next(), None));
     }
 }
