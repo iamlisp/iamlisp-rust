@@ -96,7 +96,9 @@ impl Iterator for ListIter {
 
 #[derive(Clone)]
 pub(crate) enum Value {
-    I64(i64),
+    Int64(i64),
+    Float64(f64),
+    String(String),
 }
 
 #[derive(Clone)]
@@ -111,7 +113,9 @@ impl Display for Expression {
         let str = match self {
             Expression::Nil => "Nil".to_string(),
             Expression::List(l) => format!("{}", l),
-            Expression::Value(Value::I64(i)) => format!("{}", i),
+            Expression::Value(Value::Int64(i)) => format!("{}", i),
+            Expression::Value(Value::Float64(f)) => format!("{}", f),
+            Expression::Value(Value::String(s)) => format!("{}", s),
         };
 
         write!(f, "{}", str)
@@ -136,12 +140,12 @@ mod tests {
 
     #[test]
     fn one_item_iter() {
-        let lst: List = vec![Expression::Value(Value::I64(0))].into();
+        let lst: List = vec![Expression::Value(Value::Int64(0))].into();
         let mut iter = lst.into_iter();
 
         assert!(matches!(
             iter.next(),
-            Some(Expression::Value(Value::I64(0)))
+            Some(Expression::Value(Value::Int64(0)))
         ));
         assert!(matches!(iter.next(), None));
     }
@@ -164,8 +168,8 @@ mod tests {
             format!(
                 "{}",
                 List::new(
-                    Expression::Value(Value::I64(0)),
-                    List::new(Expression::Value(Value::I64(1)), List::Empty)
+                    Expression::Value(Value::Int64(0)),
+                    List::new(Expression::Value(Value::Int64(1)), List::Empty)
                 )
             )
         );
