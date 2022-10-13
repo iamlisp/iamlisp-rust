@@ -1,4 +1,16 @@
 use crate::eval::types::{Env, Expression, List, Value, EMPTY_LIST};
+use std::collections::HashMap;
+
+#[derive(Clone)]
+pub(crate) struct Env {
+    values: HashMap<&'static str, Expression>,
+}
+
+impl Env {
+    pub(crate) fn get(&self, name: &str) -> Expression {
+        Expression::Value(Value::String(name.to_string()))
+    }
+}
 
 #[derive(Clone)]
 struct StackEntry {
@@ -34,6 +46,10 @@ fn eval_list_iterative(list: List, env: Env) -> Expression {
                         output: vec![],
                         env: env.clone(),
                     }),
+                    Expression::Symbol(name) => {
+                        let value = env.get(name);
+                        last_entry.output.push(value);
+                    }
                 }
                 last_entry.input = last_entry.input.cdr().clone()
             }
@@ -57,6 +73,6 @@ fn eval_list_iterative(list: List, env: Env) -> Expression {
     }
 }
 
-fn apply_fn(callable: &Expression, args: &[Expression], env: &Env) -> Expression {
+fn apply_fn(_callable: &Expression, _args: &[Expression], _env: &Env) -> Expression {
     Expression::Value(Value::Nil)
 }

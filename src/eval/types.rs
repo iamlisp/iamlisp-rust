@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt::{format, Display, Formatter};
 
 #[derive(Clone)]
@@ -103,6 +102,7 @@ pub(crate) enum Value {
 pub(crate) enum Expression {
     Value(Value),
     List(Box<List>),
+    Symbol(String),
 }
 
 impl Display for Expression {
@@ -113,15 +113,11 @@ impl Display for Expression {
             Expression::Value(Value::Float64(f)) => format!("{}", f),
             Expression::Value(Value::String(s)) => format!("{}", s),
             Expression::Value(Value::Nil) => "Nil".to_string(),
+            Expression::Symbol(s) => format!("{}", s),
         };
 
         write!(f, "{}", str)
     }
-}
-
-#[derive(Clone)]
-pub(crate) struct Env {
-    values: HashMap<&'static str, Expression>,
 }
 
 #[cfg(test)]
