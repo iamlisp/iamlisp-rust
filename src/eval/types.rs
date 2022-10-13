@@ -96,23 +96,23 @@ pub(crate) enum Value {
     Int64(i64),
     Float64(f64),
     String(String),
+    Nil,
 }
 
 #[derive(Clone)]
 pub(crate) enum Expression {
     Value(Value),
     List(Box<List>),
-    Nil,
 }
 
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
-            Expression::Nil => "Nil".to_string(),
             Expression::List(l) => format!("{}", l),
             Expression::Value(Value::Int64(i)) => format!("{}", i),
             Expression::Value(Value::Float64(f)) => format!("{}", f),
             Expression::Value(Value::String(s)) => format!("{}", s),
+            Expression::Value(Value::Nil) => "Nil".to_string(),
         };
 
         write!(f, "{}", str)
@@ -149,11 +149,11 @@ mod tests {
 
     #[test]
     fn two_items_iter() {
-        let lst: List = vec![Expression::Nil, Expression::Nil].into();
+        let lst: List = vec![Expression::Value(Value::Nil), Expression::Value(Value::Nil)].into();
         let mut iter = lst.into_iter();
 
-        assert!(matches!(iter.next(), Some(Expression::Nil)));
-        assert!(matches!(iter.next(), Some(Expression::Nil)));
+        assert!(matches!(iter.next(), Some(Expression::Value(Value::Nil))));
+        assert!(matches!(iter.next(), Some(Expression::Value(Value::Nil))));
         assert!(matches!(iter.next(), None));
     }
 
