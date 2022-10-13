@@ -38,12 +38,14 @@ fn eval_list_iterative(list: List, env: Env) -> Expression {
                 last_entry.input = last_entry.input.cdr().clone()
             }
             None => {
-                if last_entry.output.is_empty() {
-                    result = Expression::List(Box::new(EMPTY_LIST));
+                result = if last_entry.output.is_empty() {
+                    Expression::List(Box::new(EMPTY_LIST))
                 } else {
-                    // @todo Evaluate output list and put value into result
-                    todo!()
-                }
+                    let callable = &last_entry.output[0];
+                    let args = &last_entry.output[1..];
+
+                    apply_fn(callable, args, &last_entry.env)
+                };
 
                 let _ = stack.pop();
 
@@ -53,4 +55,8 @@ fn eval_list_iterative(list: List, env: Env) -> Expression {
             }
         }
     }
+}
+
+fn apply_fn(callable: &Expression, args: &[Expression], env: &Env) -> Expression {
+    Expression::Value(Value::Nil)
 }
