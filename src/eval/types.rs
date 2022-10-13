@@ -3,14 +3,14 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub(crate) enum List {
     Empty,
-    NonEmpty { car: Expression, cdr: Box<List> },
+    Normal { car: Expression, cdr: Box<List> },
 }
 
 pub(crate) const EMPTY_LIST: List = List::Empty;
 
 impl List {
     pub(crate) fn new(car: Expression, cdr: List) -> Self {
-        List::NonEmpty {
+        List::Normal {
             car,
             cdr: Box::new(cdr),
         }
@@ -19,14 +19,14 @@ impl List {
     pub(crate) fn car(&self) -> Option<&Expression> {
         match self {
             List::Empty => None,
-            List::NonEmpty { car, cdr: _ } => Some(car),
+            List::Normal { car, cdr: _ } => Some(car),
         }
     }
 
     pub(crate) fn cdr(&self) -> &List {
         match self {
             List::Empty => &EMPTY_LIST,
-            List::NonEmpty { car: _, cdr } => cdr,
+            List::Normal { car: _, cdr } => cdr,
         }
     }
 
