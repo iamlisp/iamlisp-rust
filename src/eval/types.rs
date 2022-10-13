@@ -63,6 +63,21 @@ impl Display for List {
     }
 }
 
+impl Into<List> for Vec<Expression> {
+    fn into(self) -> List {
+        let mut list = EMPTY_LIST;
+
+        for item in self.into_iter().rev() {
+            list = List::Normal {
+                car: item,
+                cdr: Box::new(list),
+            }
+        }
+
+        list
+    }
+}
+
 pub(crate) struct ListIter {
     list: List,
 }
@@ -121,7 +136,8 @@ mod tests {
 
     #[test]
     fn one_item_iter() {
-        let mut iter = List::new(Expression::Value(Value::I64(0)), List::Empty).into_iter();
+        let lst: List = vec![Expression::Value(Value::I64(0))].into();
+        let mut iter = lst.into_iter();
 
         assert!(matches!(
             iter.next(),
@@ -132,8 +148,8 @@ mod tests {
 
     #[test]
     fn two_items_iter() {
-        let mut iter =
-            List::new(Expression::Nil, List::new(Expression::Nil, List::Empty)).into_iter();
+        let lst: List = vec![Expression::Nil, Expression::Nil].into();
+        let mut iter = lst.into_iter();
 
         assert!(matches!(iter.next(), Some(Expression::Nil)));
         assert!(matches!(iter.next(), Some(Expression::Nil)));
@@ -142,14 +158,16 @@ mod tests {
 
     #[test]
     fn list_to_string() {
-        assert_eq!("()", EMPTY_LIST.to_string());
+        assert_eq!("()", format!("{}", EMPTY_LIST));
         assert_eq!(
             "(0 1)",
-            List::new(
-                Expression::Value(Value::I64(0)),
-                List::new(Expression::Value(Value::I64(1)), List::Empty)
+            format!(
+                "{}",
+                List::new(
+                    Expression::Value(Value::I64(0)),
+                    List::new(Expression::Value(Value::I64(1)), List::Empty)
+                )
             )
-            .to_string()
         );
     }
 }
