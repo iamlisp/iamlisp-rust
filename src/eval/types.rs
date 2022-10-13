@@ -10,7 +10,7 @@ pub(crate) enum List {
 pub(crate) const EMPTY_LIST: List = List::Empty;
 
 impl List {
-    pub(crate) fn new(car: Expression, cdr: List) -> Self {
+    pub(crate) fn cons(car: Expression, cdr: List) -> Self {
         List::Normal {
             car,
             cdr: Box::new(cdr),
@@ -68,10 +68,7 @@ impl Into<List> for Vec<Expression> {
         let mut list = EMPTY_LIST;
 
         for item in self.into_iter().rev() {
-            list = List::Normal {
-                car: item,
-                cdr: Box::new(list),
-            }
+            list = List::cons(item, list)
         }
 
         list
@@ -163,15 +160,14 @@ mod tests {
     #[test]
     fn list_to_string() {
         assert_eq!("()", format!("{}", EMPTY_LIST));
-        assert_eq!(
-            "(0 1)",
-            format!(
-                "{}",
-                List::new(
-                    Expression::Value(Value::Int64(0)),
-                    List::new(Expression::Value(Value::Int64(1)), List::Empty)
-                )
-            )
-        );
+
+        {
+            let list: List = vec![
+                Expression::Value(Value::Int64(0)),
+                Expression::Value(Value::Int64(1)),
+            ]
+            .into();
+            assert_eq!("(0 1)", format!("{}", list));
+        }
     }
 }
