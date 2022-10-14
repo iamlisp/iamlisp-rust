@@ -1,12 +1,13 @@
-use crate::eval::types::{Env, Expression, List, Value, EMPTY_LIST};
+use crate::data::List;
+use crate::eval::types::{Env, Expression, Value, EMPTY_LIST};
 use anyhow::bail;
 
 pub(crate) enum EvalError {}
 
 #[derive(Clone)]
 struct StackEntry {
-    input: List,
-    output: List,
+    input: List<Expression>,
+    output: List<Expression>,
     env: Env,
 }
 

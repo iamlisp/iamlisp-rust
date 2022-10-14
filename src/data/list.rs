@@ -7,6 +7,10 @@ pub(crate) enum List<T: Display> {
 }
 
 impl<T: Display> List<T> {
+    pub(crate) fn new() -> Self {
+        List::Empty
+    }
+
     pub(crate) fn cons(car: T, cdr: List<T>) -> Self {
         List::Normal {
             car,
