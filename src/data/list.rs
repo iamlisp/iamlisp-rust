@@ -48,6 +48,18 @@ impl<T: Display> List<T> {
             cdr: Box::new(self),
         }
     }
+
+    pub(crate) fn reverse(self) -> List<T> {
+        let mut acc = List::Empty;
+        let mut current = self;
+
+        while let List::Normal { car, cdr } = current {
+            acc = acc.unshift(car);
+            current = *cdr;
+        }
+
+        acc
+    }
 }
 
 impl<T: Display> Display for List<T> {
@@ -91,5 +103,11 @@ mod tests {
     fn test_unshift() {
         let list: List<u8> = List::Empty.unshift(10).unshift(20);
         assert_eq!("(20 10)", list.to_string());
+    }
+
+    #[test]
+    fn test_reverse() {
+        let list: List<u8> = List::Empty.unshift(10).unshift(20).reverse();
+        assert_eq!("(10 20)", list.to_string());
     }
 }
