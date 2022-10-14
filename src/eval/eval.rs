@@ -88,14 +88,14 @@ mod tests {
     fn test_sum() {
         let env = Env::new();
 
-        let result = eval_list_iterative(
-            vec![
-                Expression::Symbol("+"),
-                Expression::Value(Value::Int64(1)),
-                Expression::Value(Value::Int64(2)),
-            ]
-            .into(),
-            env,
-        );
+        // let result = eval_list_iterative(
+        //     vec![
+        //         Expression::Symbol("+"),
+        //         Expression::Value(Value::Int64(1)),
+        //         Expression::Value(Value::Int64(2)),
+        //     ]
+        //     .into(),
+        //     env,
+        // );
     }
 }
