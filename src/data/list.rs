@@ -74,6 +74,21 @@ impl<T: Display> Into<List<T>> for Vec<T> {
     }
 }
 
+impl<T: Display> Into<Vec<T>> for List<T> {
+    fn into(self) -> Vec<T> {
+        let mut acc = vec![];
+        let mut cursor = self;
+
+        while let List::Normal { car, cdr } = cursor {
+            acc.push(car);
+
+            cursor = *cdr;
+        }
+
+        acc
+    }
+}
+
 impl<T: Display> Display for List<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut str = String::new();
