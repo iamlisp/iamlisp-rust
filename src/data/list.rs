@@ -62,6 +62,18 @@ impl<T: Display> List<T> {
     }
 }
 
+impl<T: Display> Into<List<T>> for Vec<T> {
+    fn into(self) -> List<T> {
+        let mut acc = List::Empty;
+
+        for item in self.into_iter().rev() {
+            acc = acc.unshift(item);
+        }
+
+        acc
+    }
+}
+
 impl<T: Display> Display for List<T> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut str = String::new();
@@ -109,5 +121,11 @@ mod tests {
     fn test_reverse() {
         let list: List<u8> = List::Empty.unshift(10).unshift(20).reverse();
         assert_eq!("(10 20)", list.to_string());
+    }
+
+    #[test]
+    fn test_into_list() {
+        let list: List<_> = vec![0, 1, 2, 3].into();
+        assert_eq!("(0 1 2 3)", list.to_string());
     }
 }
