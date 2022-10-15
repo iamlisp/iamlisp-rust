@@ -1,9 +1,12 @@
 use std::fmt::{Display, Formatter};
+use std::fs::read;
+use std::mem::take;
+use std::ptr::replace;
 
 #[macro_export]
 macro_rules! list {
     () => {{
-        $crate::data::List::new()
+        $crate::data::List::<_>::new()
     }};
     ($($args:tt),*) => {{
         let mut list = $crate::data::List::new();
@@ -117,6 +120,17 @@ impl<T> List<T> {
 
         acc
     }
+
+    pub(crate) fn pop_mut(&mut self) -> Option<T> {
+        match take(self) {
+            List::Normal { car, cdr } => {
+                *self = *cdr;
+
+                Some(car)
+            }
+            List::Empty => None,
+        }
+    }
 }
 
 impl<T: Display> Display for List<T> {
@@ -177,15 +191,19 @@ impl<T> Iterator for ListIter<T> {
     }
 }
 
+impl<T> Default for List<T> {
+    fn default() -> Self {
+        List::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn macro_constructor() {
-        let list: List<u8> = list![];
-
-        assert_eq!("()", list.to_string());
+    fn test_macro_constructor() {
+        assert_eq!("(0 1 2 3 4 5)", list![0, 1, 2, 3, 4, 5].to_string());
     }
 
     #[test]
@@ -231,9 +249,13 @@ mod tests {
     }
 
     #[test]
-    fn test_macro_constructor() {
-        let list: List<_> = list![0, 1, 2, 3, 4, 5];
+    fn test_pop_mut() {
+        let mut list: List<_> = (0..4).collect();
 
-        assert_eq!("(0 1 2 3 4 5)", list.to_string());
+        assert_eq!("(0 1 2 3)", list.to_string());
+
+        assert_eq!(Some(0), list.pop_mut());
+
+        assert_eq!("(1 2 3)", list.to_string());
     }
 }
