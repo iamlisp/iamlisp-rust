@@ -1,7 +1,7 @@
 use crate::data::List;
 use std::fmt::{Display, Formatter};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) struct Env {}
 
 impl Env {
@@ -14,7 +14,7 @@ impl Env {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Value {
     Int64(i64),
     Float64(f64),
@@ -31,7 +31,7 @@ pub(crate) enum Value {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Expression {
     Value(Value),
     List(Box<List<Expression>>),

@@ -49,6 +49,13 @@ impl<T> List<T> {
         }
     }
 
+    pub(crate) fn head_mut(&mut self) -> Option<&mut T> {
+        match self {
+            List::Empty => None,
+            List::Normal { car, cdr: _ } => Some(car),
+        }
+    }
+
     pub(crate) fn tail(&self) -> &List<T> {
         match self {
             List::Empty => &self,
@@ -195,6 +202,18 @@ impl<T> Iterator for ListIter<T> {
 impl<T> Default for List<T> {
     fn default() -> Self {
         List::new()
+    }
+}
+
+impl<T: Clone> Clone for List<T> {
+    fn clone(&self) -> List<T> {
+        match self {
+            List::Empty => List::new(),
+            List::Normal { car, cdr } => List::Normal {
+                car: car.clone(),
+                cdr: cdr.clone(),
+            },
+        }
     }
 }
 

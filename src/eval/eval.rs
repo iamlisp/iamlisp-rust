@@ -2,6 +2,7 @@ use crate::data::List;
 use crate::eval::types::{Env, Expression, Value};
 use crate::list;
 use anyhow::bail;
+use std::mem::take;
 
 struct StackEntry {
     input: List<Expression>,
@@ -19,48 +20,83 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     let mut stack = list![stack_entry];
     let mut last_return_value = Expression::Value(Value::Nil);
 
-    while let Some(StackEntry {
-        mut input,
-        mut output,
-        env,
-    }) = stack.pop_mut()
-    {
-        match input.pop_mut() {
-            Some(exp) => {
-                match exp {
-                    Expression::List(list) => match *list {
-                        List::Empty => {
-                            output = output.push(Expression::List(Box::new(List::new())));
-                        }
-                        // @todo check special form
-                        _ => (),
-                    },
-                    Expression::Value(value) => {
-                        output = output.push(Expression::Value(value));
+    loop {
+        match stack.pop_mut() {
+            Some(StackEntry {
+                mut input,
+                mut output,
+                env,
+            }) => {
+                match (input.pop_mut(), output.is_empty()) {
+                    (Some(Expression::Symbol("def")), true) => todo!(),
+                    (Some(Expression::Symbol("list")), true) => todo!(),
+                    (Some(Expression::Symbol("macro")), true) => {
+                        let args = match input.pop_mut() {
+                            Some(Expression::List(args)) => args,
+                            _ => bail!("Unexpected type of lambda arguments"),
+                        };
+                        output = output.push(Expression::Value(Value::Macro {
+                            args,
+                            body: Box::new(input),
+                        }));
+                        input = List::new();
                     }
-                    Expression::Symbol(name) => {
+                    (Some(Expression::Symbol("lambda")), true) => {
+                        let env = env.clone();
+                        let args = match input.pop_mut() {
+                            Some(Expression::List(args)) => args,
+                            _ => bail!("Unexpected type of lambda arguments"),
+                        };
+                        output = output.push(Expression::Value(Value::Lambda {
+                            args,
+                            env,
+                            body: Box::new(input),
+                        }));
+                        input = List::new();
+                    }
+                    (Some(Expression::Symbol(name)), _) => {
                         output = output.push(env.get(name));
+                    }
+                    (Some(Expression::List(list)), _) => {
+                        stack = stack
+                            .unshift(StackEntry {
+                                input,
+                                output,
+                                env: env.clone(),
+                            })
+                            .unshift(StackEntry {
+                                input: *list,
+                                output: List::new(),
+                                env: env.clone(),
+                            });
+                        continue;
+                    }
+                    (Some(expression), _) => output = output.push(expression),
+                    (None, _) => {
+                        let result = match output {
+                            List::Normal {
+                                car: callable,
+                                cdr: args,
+                            } => apply_fn(&callable, &args, &env)?,
+                            List::Empty => Expression::List(Box::new(List::new())),
+                        };
+                        output = List::new();
+
+                        if let Some(StackEntry {
+                            output: prev_output,
+                            ..
+                        }) = stack.head_mut()
+                        {
+                            *prev_output = take(prev_output).unshift(result);
+                        } else {
+                            last_return_value = result;
+                        }
                     }
                 }
                 stack = stack.unshift(StackEntry { input, output, env });
             }
             None => {
-                // @todo evaluate output
-
-                let result = match output {
-                    List::Empty => Expression::List(Box::new(List::Empty)),
-                    _list => Expression::Value(Value::Nil),
-                };
-
-                if let Some(StackEntry {
-                    output: mut prev_output,
-                    ..
-                }) = stack.pop_mut()
-                {
-                    prev_output = prev_output.unshift(result);
-                } else {
-                    last_return_value = result;
-                }
+                break;
             }
         }
     }
@@ -68,76 +104,24 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     Ok(last_return_value)
 }
 
-// pub(crate) fn eval_list_iterative(list: List<Expression>, env: Env) -> anyhow::Result<Expression> {
-//     let mut stack = List::new();
-//     let mut result = None;
-//
-//     stack = stack.push(StackEntry {
-//         input: list,
-//         output: List::new(),
-//         env: env.clone(),
-//     });
-//
-//     loop {
-//         let StackEntry {
-//             input: mut last_input,
-//             output: mut last_output,
-//             env: last_env,
-//         } = match stack.last_mut() {
-//             Some(entry) => entry.clone(),
-//             None => return Ok(result),
-//         };
-//
-//         match last_input.take_mut() {
-//             Some(car) => {
-//                 match car {
-//                     Expression::Value(value) => {
-//                         last_output.push_mut(Expression::Value(value.clone()))
-//                     }
-//                     Expression::List(list) => stack.push(StackEntry {
-//                         input: *list.clone(),
-//                         output: List::new(),
-//                         env: env.clone(),
-//                     }),
-//                     Expression::Symbol(name) => {
-//                         //let value = env.get(name);
-//                         last_output.push_mut(Expression::Symbol(name));
-//                     }
-//                 }
-//             }
-//             None => {
-//                 result = match last_output.car() {
-//                     Some(callable) => {
-//                         let args = last_output.cdr().clone().into_iter().collect::<Vec<_>>();
-//                         let env = &last_env;
-//
-//                         apply_fn(callable, &args, env)?
-//                     }
-//                     None => Expression::List(Box::new(EMPTY_LIST)),
-//                 };
-//
-//                 let _ = stack.pop();
-//
-//                 if let Some(entry) = stack.last_mut() {
-//                     entry.output.push_mut(result.clone())
-//                 }
-//             }
-//         }
-//     }
-// }
-//
-// fn apply_fn(callable: &Expression, args: &[Expression], _env: &Env) -> anyhow::Result<Expression> {
-//     match callable {
-//         Expression::Symbol("+") => match args {
-//             [Expression::Value(Value::Int64(a)), Expression::Value(Value::Int64(b))] => {
-//                 Ok(Expression::Value(Value::Int64(a + b)))
-//             }
-//             _ => bail!("Unsupported arguments"),
-//         },
-//         _ => bail!("Unsupported callable"),
-//     }
-// }
-//
+fn apply_fn(
+    callable: &Expression,
+    args: &List<Expression>,
+    _env: &Env,
+) -> anyhow::Result<Expression> {
+    let args_vec = List::clone(&args).into_iter().collect::<Vec<_>>();
+
+    match callable {
+        Expression::Symbol("+") => match &args_vec.as_slice() {
+            [Expression::Value(Value::Int64(a)), Expression::Value(Value::Int64(b))] => {
+                Ok(Expression::Value(Value::Int64(a + b)))
+            }
+            _ => bail!("Unsupported arguments"),
+        },
+        _ => bail!("Unsupported callable"),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
