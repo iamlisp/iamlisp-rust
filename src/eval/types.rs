@@ -59,6 +59,18 @@ impl Display for Expression {
     }
 }
 
+impl Into<Expression> for Value {
+    fn into(self) -> Expression {
+        Expression::Value(self)
+    }
+}
+
+impl Into<Expression> for List<Expression> {
+    fn into(self) -> Expression {
+        Expression::List(Box::from(self))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

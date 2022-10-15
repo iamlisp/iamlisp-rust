@@ -18,7 +18,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     };
 
     let mut stack = list![stack_entry];
-    let mut last_return_value = Expression::Value(Value::Nil);
+    let mut last_return_value = Value::Nil.into();
 
     loop {
         match stack.pop_mut() {
@@ -35,10 +35,13 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             Some(Expression::List(args)) => args,
                             _ => bail!("Unexpected type of lambda arguments"),
                         };
-                        output = output.push(Expression::Value(Value::Macro {
-                            args,
-                            body: Box::new(input),
-                        }));
+                        output = output.push(
+                            Value::Macro {
+                                args,
+                                body: Box::new(input),
+                            }
+                            .into(),
+                        );
                         input = List::new();
                     }
                     (Some(Expression::Symbol("lambda")), true) => {
@@ -47,11 +50,14 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             Some(Expression::List(args)) => args,
                             _ => bail!("Unexpected type of lambda arguments"),
                         };
-                        output = output.push(Expression::Value(Value::Lambda {
-                            args,
-                            env,
-                            body: Box::new(input),
-                        }));
+                        output = output.push(
+                            Value::Lambda {
+                                args,
+                                env,
+                                body: Box::new(input),
+                            }
+                            .into(),
+                        );
                         input = List::new();
                     }
                     (Some(Expression::Symbol(name)), _) => {
@@ -78,7 +84,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                 car: callable,
                                 cdr: args,
                             } => apply_fn(&callable, &args, &env)?,
-                            List::Empty => Expression::List(Box::new(List::new())),
+                            List::Empty => List::new().into(),
                         };
 
                         if let Some(StackEntry {
@@ -110,7 +116,7 @@ fn apply_fn(
     match callable {
         Expression::Symbol("+") => match &args_vec.as_slice() {
             [Expression::Value(Value::Int64(a)), Expression::Value(Value::Int64(b))] => {
-                Ok(Expression::Value(Value::Int64(a + b)))
+                Ok(Value::Int64(a + b).into())
             }
             _ => bail!("Unsupported arguments"),
         },
@@ -127,9 +133,9 @@ mod tests {
         let env = Env::new();
         let exp = list![];
 
-        let result = eval_iterative(exp, env).ok();
+        let result = eval_iterative(exp, env).unwrap();
 
-        assert_eq!(Some(Expression::List(Box::new(list![]))), result)
+        assert_eq!(Expression::List(Box::new(list![])), result)
     }
 
     #[test]
@@ -137,13 +143,13 @@ mod tests {
         let env = Env::new();
         let exp: List<_> = list![
             Expression::Symbol("+"),
-            Expression::Value(Value::Int64(2)),
-            Expression::Value(Value::Int64(3))
+            Value::Int64(2).into(),
+            Value::Int64(3).into()
         ];
 
-        let result = eval_iterative(exp, env).ok();
+        let result = eval_iterative(exp, env).unwrap();
 
-        assert_eq!(Some(Expression::Value(Value::Int64(5))), result)
+        assert_eq!(Expression::Value(Value::Int64(5)), result)
     }
 
     #[test]
@@ -151,13 +157,13 @@ mod tests {
         let env = Env::new();
         let exp1: List<_> = list![
             Expression::Symbol("+"),
-            Expression::Value(Value::Int64(2)),
-            Expression::Value(Value::Int64(3))
+            Value::Int64(2).into(),
+            Value::Int64(3).into()
         ];
         let exp2: List<_> = list![
             Expression::Symbol("+"),
-            Expression::List(Box::new(exp1)),
-            Expression::Value(Value::Int64(10))
+            exp1.into(),
+            Value::Int64(10).into()
         ];
 
         let result = eval_iterative(exp2, env).unwrap();
