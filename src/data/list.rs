@@ -64,6 +64,39 @@ impl<T: Display> List<T> {
 
         acc
     }
+
+    pub(crate) fn map<CB, R: Display>(self, cb: CB) -> List<R>
+    where
+        CB: FnMut(T) -> R,
+    {
+        let mut acc = List::Empty;
+        let mut current = self.reverse();
+
+        while let List::Normal { car, cdr } = current {
+            acc = acc.unshift(cb(car));
+            current = *cdr;
+        }
+
+        acc
+    }
+
+    pub(crate) fn filter<CB>(self, cb: CB) -> List<T>
+    where
+        CB: FnMut(&T) -> bool,
+    {
+        let mut acc = List::Empty;
+        let mut current = self.reverse();
+
+        while let List::Normal { car, cdr } = current {
+            if cb(&car) {
+                acc = acc.unshift(car);
+            }
+
+            current = *cdr;
+        }
+
+        acc
+    }
 }
 
 impl<T: Display> Into<List<T>> for Vec<T> {
