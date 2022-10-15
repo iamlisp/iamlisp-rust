@@ -90,18 +90,15 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             *prev_output = take(prev_output).unshift(result);
                         } else {
                             last_return_value = result;
+                            continue;
                         }
                     }
                 }
                 stack = stack.unshift(StackEntry { input, output, env });
             }
-            None => {
-                break;
-            }
+            None => return Ok(last_return_value),
         }
     }
-
-    Ok(last_return_value)
 }
 
 fn apply_fn(
