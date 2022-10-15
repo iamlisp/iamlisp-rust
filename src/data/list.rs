@@ -24,6 +24,7 @@ macro_rules! list {
     }};
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum List<T> {
     Empty,
     Normal { car: T, cdr: Box<List<T>> },
