@@ -73,25 +73,24 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     }
                     (Some(expression), _) => output = output.push(expression),
                     (None, _) => {
-                        let result = match output {
+                        let result = match take(&mut output) {
                             List::Normal {
                                 car: callable,
                                 cdr: args,
                             } => apply_fn(&callable, &args, &env)?,
                             List::Empty => Expression::List(Box::new(List::new())),
                         };
-                        output = List::new();
 
                         if let Some(StackEntry {
                             output: prev_output,
                             ..
                         }) = stack.head_mut()
                         {
-                            *prev_output = take(prev_output).unshift(result);
+                            *prev_output = take(prev_output).push(result);
                         } else {
                             last_return_value = result;
-                            continue;
                         }
+                        continue;
                     }
                 }
                 stack = stack.unshift(StackEntry { input, output, env });
@@ -115,7 +114,7 @@ fn apply_fn(
             }
             _ => bail!("Unsupported arguments"),
         },
-        _ => bail!("Unsupported callable"),
+        expression => bail!("Unsupported callable type: {}", expression),
     }
 }
 
@@ -131,5 +130,38 @@ mod tests {
         let result = eval_iterative(exp, env).ok();
 
         assert_eq!(Some(Expression::List(Box::new(list![]))), result)
+    }
+
+    #[test]
+    fn test_eval_sum_of_two_numbers() {
+        let env = Env::new();
+        let exp: List<_> = list![
+            Expression::Symbol("+"),
+            Expression::Value(Value::Int64(2)),
+            Expression::Value(Value::Int64(3))
+        ];
+
+        let result = eval_iterative(exp, env).ok();
+
+        assert_eq!(Some(Expression::Value(Value::Int64(5))), result)
+    }
+
+    #[test]
+    fn test_eval_nested_sum() {
+        let env = Env::new();
+        let exp1: List<_> = list![
+            Expression::Symbol("+"),
+            Expression::Value(Value::Int64(2)),
+            Expression::Value(Value::Int64(3))
+        ];
+        let exp2: List<_> = list![
+            Expression::Symbol("+"),
+            Expression::List(Box::new(exp1)),
+            Expression::Value(Value::Int64(10))
+        ];
+
+        let result = eval_iterative(exp2, env).unwrap();
+
+        assert_eq!(Expression::Value(Value::Int64(15)), result)
     }
 }

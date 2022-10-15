@@ -9,8 +9,8 @@ impl Env {
         Self {}
     }
 
-    pub(crate) fn get(&self, name: &str) -> Expression {
-        Expression::Value(Value::String(name.to_string()))
+    pub(crate) fn get(&self, name: &'static str) -> Expression {
+        Expression::Symbol(name.clone())
     }
 }
 

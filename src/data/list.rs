@@ -8,7 +8,7 @@ macro_rules! list {
     () => {{
         $crate::data::List::<_>::new()
     }};
-    ($($args:tt),*) => {{
+    ($($args:expr),*) => {{
         let mut list = $crate::data::List::new();
         let mut index = 0;
 
