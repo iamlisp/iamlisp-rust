@@ -1,12 +1,32 @@
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone)]
-pub(crate) enum List<T: Display> {
+#[macro_export]
+macro_rules! list {
+    () => {{
+        $crate::data::List::new()
+    }};
+    ($($args:tt),*) => {{
+        let mut list = $crate::data::List::new();
+        let mut index = 0;
+
+        $(
+            #[allow(unused_assignments)]
+            {
+                list = list.unshift($args);
+                index = index + 1;
+            }
+        )*
+
+        list.reverse()
+    }};
+}
+
+pub(crate) enum List<T> {
     Empty,
     Normal { car: T, cdr: Box<List<T>> },
 }
 
-impl<T: Display> List<T> {
+impl<T> List<T> {
     pub(crate) fn new() -> Self {
         List::Empty
     }
@@ -27,7 +47,7 @@ impl<T: Display> List<T> {
 
     pub(crate) fn tail(&self) -> &List<T> {
         match self {
-            List::Empty => &List::Empty,
+            List::Empty => &self,
             List::Normal { car: _, cdr } => cdr,
         }
     }
@@ -54,7 +74,7 @@ impl<T: Display> List<T> {
     }
 
     pub(crate) fn reverse(self) -> List<T> {
-        let mut acc = List::Empty;
+        let mut acc = List::new();
         let mut current = self;
 
         while let List::Normal { car, cdr } = current {
@@ -67,9 +87,9 @@ impl<T: Display> List<T> {
 
     pub(crate) fn map<CB, R: Display>(self, cb: CB) -> List<R>
     where
-        CB: FnMut(T) -> R,
+        CB: Fn(T) -> R,
     {
-        let mut acc = List::Empty;
+        let mut acc = List::new();
         let mut current = self.reverse();
 
         while let List::Normal { car, cdr } = current {
@@ -82,9 +102,9 @@ impl<T: Display> List<T> {
 
     pub(crate) fn filter<CB>(self, cb: CB) -> List<T>
     where
-        CB: FnMut(&T) -> bool,
+        CB: Fn(&T) -> bool,
     {
-        let mut acc = List::Empty;
+        let mut acc = List::new();
         let mut current = self.reverse();
 
         while let List::Normal { car, cdr } = current {
@@ -93,33 +113,6 @@ impl<T: Display> List<T> {
             }
 
             current = *cdr;
-        }
-
-        acc
-    }
-}
-
-impl<T: Display> Into<List<T>> for Vec<T> {
-    fn into(self) -> List<T> {
-        let mut acc = List::Empty;
-
-        for item in self.into_iter().rev() {
-            acc = acc.unshift(item);
-        }
-
-        acc
-    }
-}
-
-impl<T: Display> Into<Vec<T>> for List<T> {
-    fn into(self) -> Vec<T> {
-        let mut acc = vec![];
-        let mut cursor = self;
-
-        while let List::Normal { car, cdr } = cursor {
-            acc.push(car);
-
-            cursor = *cdr;
         }
 
         acc
@@ -147,37 +140,100 @@ impl<T: Display> Display for List<T> {
     }
 }
 
+impl<T> FromIterator<T> for List<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut list = List::new();
+        for item in iter {
+            list = list.push(item)
+        }
+        list
+    }
+}
+
+impl<T> IntoIterator for List<T> {
+    type Item = T;
+    type IntoIter = ListIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        ListIter { list: Some(self) }
+    }
+}
+
+pub(crate) struct ListIter<T> {
+    list: Option<List<T>>,
+}
+
+impl<T> Iterator for ListIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.list.take() {
+            Some(List::Normal { car, cdr }) => {
+                self.list = Some(*cdr);
+                Some(car)
+            }
+            _ => None,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn empty() {
-        let list: List<u8> = List::Empty;
+    fn macro_constructor() {
+        let list: List<u8> = list![];
+
         assert_eq!("()", list.to_string());
     }
 
     #[test]
     fn test_push() {
-        let list: List<u8> = List::Empty.push(10).push(20);
+        let list = List::new().push(10).push(20);
+
         assert_eq!("(10 20)", list.to_string());
     }
 
     #[test]
     fn test_unshift() {
-        let list: List<u8> = List::Empty.unshift(10).unshift(20);
+        let list = List::new().unshift(10).unshift(20);
+
         assert_eq!("(20 10)", list.to_string());
     }
 
     #[test]
     fn test_reverse() {
-        let list: List<u8> = List::Empty.unshift(10).unshift(20).reverse();
-        assert_eq!("(10 20)", list.to_string());
+        let list = list![10, 20].reverse();
+
+        assert_eq!("(20 10)", list.to_string());
+    }
+
+    #[test]
+    fn test_map() {
+        let list = list![10, 20].map(|a| a * 2);
+
+        assert_eq!("(20 40)", list.to_string());
+    }
+
+    #[test]
+    fn test_filter() {
+        let list: List<_> = (0..10).collect::<List<_>>().filter(|i| i % 2 == 0);
+
+        assert_eq!("(0 2 4 6 8)", list.to_string());
     }
 
     #[test]
     fn test_into_list() {
-        let list: List<_> = vec![0, 1, 2, 3].into();
+        let list: List<_> = (0..4).collect();
+
         assert_eq!("(0 1 2 3)", list.to_string());
+    }
+
+    #[test]
+    fn test_macro_constructor() {
+        let list: List<_> = list![0, 1, 2, 3, 4, 5];
+
+        assert_eq!("(0 1 2 3 4 5)", list.to_string());
     }
 }
