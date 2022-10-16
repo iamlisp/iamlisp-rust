@@ -11,6 +11,8 @@ struct StackEntry {
     env: Env,
 }
 
+const SPECIAL_FORMS: [&str; 4] = ["+", "-", "/", "*"];
+
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
         input: exp,
@@ -26,35 +28,31 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
             Some(StackEntry {
                 mut input,
                 mut output,
-                env,
+                mut env,
             }) => {
                 match (input.pop_mut(), output.is_empty()) {
-                    // check special forms only if they are at begin of the list
-                    // we assume that "begin" means that output is empty
-                    (Some(Expression::Symbol("def")), true) => todo!(),
+                    (Some(Expression::Symbol("def")), true) => {
+                        output = output.push(Expression::Symbol("def"));
+                    }
                     (Some(Expression::Symbol("macro")), true) => {
-                        let args = match input.pop_mut() {
-                            Some(Expression::List(args)) => args,
-                            _ => bail!("Unexpected type of lambda arguments"),
-                        };
-                        let body = Box::new(input);
-
-                        output = output.push(Value::Macro { args, body }.into());
+                        output = List::cons(Expression::Symbol("macro"), input);
                         input = List::new();
                     }
                     (Some(Expression::Symbol("lambda")), true) => {
-                        let env = env.clone();
-                        let args = match input.pop_mut() {
-                            Some(Expression::List(args)) => args,
-                            _ => bail!("Unexpected type of lambda arguments"),
-                        };
-                        let body = Box::new(input);
-
-                        output = output.push(Value::Lambda { args, env, body }.into());
+                        output = List::cons(Expression::Symbol("lambda"), input);
                         input = List::new();
                     }
+                    (Some(Expression::Symbol(name)), false)
+                        if matches!(output.head(), Some(Expression::Symbol("def")))
+                            && output.len() % 2 == 1 =>
+                    {
+                        output = output.push(Expression::Symbol(name));
+                    }
+                    (Some(Expression::Symbol(name)), _) if SPECIAL_FORMS.contains(&name) => {
+                        output = output.push(Expression::Symbol(name));
+                    }
                     (Some(Expression::Symbol(name)), _) => {
-                        output = output.push(env.get(name));
+                        output = output.push(env.get(name)?);
                     }
                     (Some(Expression::List(list)), _) => {
                         stack = stack
@@ -76,7 +74,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             List::Normal {
                                 car: callable,
                                 cdr: args,
-                            } => apply_fn(&callable, &args, &env)?,
+                            } => apply_callable(&callable, &args, &mut env)?,
                             List::Empty => List::new().into(),
                         };
 
@@ -99,10 +97,10 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     }
 }
 
-fn apply_fn(
+fn apply_callable(
     callable: &Expression,
     args: &List<Expression>,
-    env: &Env,
+    env: &mut Env,
 ) -> anyhow::Result<Expression> {
     Ok(match callable {
         Expression::Symbol("+") => Sum::apply(args, env)?,
@@ -110,7 +108,68 @@ fn apply_fn(
         Expression::Symbol("-") => Subtract::apply(args, env)?,
         Expression::Symbol("/") => Divide::apply(args, env)?,
         Expression::Symbol("list") => List::clone(&args).into(),
-        expression => bail!("Expression is not callable type: {}", expression),
+
+        // special forms
+        Expression::Symbol("lambda") => {
+            let lambda_args = match args.head() {
+                Some(Expression::List(args)) => List::clone(args),
+                Some(ex) => bail!(
+                    "Syntax error: lambda arguments should be a list, but it was: {}",
+                    ex
+                ),
+                None => bail!("Syntax error: lambda should have arguments list"),
+            };
+            let lambda_body = List::clone(args.tail());
+
+            Value::Lambda {
+                args: Box::from(lambda_args),
+                body: Box::from(lambda_body),
+                env: env.clone(),
+            }
+            .into()
+        }
+        Expression::Symbol("macro") => {
+            let lambda_args = match args.head() {
+                Some(Expression::List(args)) => List::clone(args),
+                Some(ex) => bail!(
+                    "Syntax error: macro arguments should be a list, but it was: {}",
+                    ex
+                ),
+                None => bail!("Syntax error: macro should have arguments list"),
+            };
+            let lambda_body = List::clone(args.tail());
+
+            Value::Macro {
+                args: Box::from(lambda_args),
+                body: Box::from(lambda_body),
+            }
+            .into()
+        }
+        Expression::Symbol("def") => {
+            let mut args = List::clone(&args);
+
+            while !args.is_empty() {
+                let name = match args.pop_mut() {
+                    Some(Expression::Symbol(name)) => name,
+                    Some(other) => bail!(
+                        "Syntax error: variable name should be a symbol, but it was: {}",
+                        other
+                    ),
+                    None => bail!("Syntax error: def should have even number of arguments"),
+                };
+                let value = match args.pop_mut() {
+                    Some(expr) => expr,
+                    None => bail!("Syntax error: def should have even number of arguments"),
+                };
+
+                env.set(name, value);
+            }
+
+            Value::Nil.into()
+        }
+
+        // exception
+        other => bail!("Expression is not callable type: {}", other),
     })
 }
 
@@ -126,67 +185,6 @@ mod tests {
         let result = eval_iterative(exp, env).unwrap();
 
         assert_eq!(Expression::List(Box::new(list![])), result)
-    }
-
-    #[test]
-    fn test_eval_sum_of_two_numbers() {
-        let env = Env::new();
-
-        // i64 + i64
-        {
-            let exp = list![
-                Expression::Symbol("+"),
-                Value::Int64(2).into(),
-                Value::Int64(3).into()
-            ];
-
-            assert_eq!(
-                Expression::Value(Value::Int64(5)),
-                eval_iterative(exp, env.clone(),).unwrap()
-            );
-        };
-
-        // f64 + f64
-        {
-            let exp = list![
-                Expression::Symbol("+"),
-                Value::Float64(2.5).into(),
-                Value::Float64(3.2).into()
-            ];
-
-            assert_eq!(
-                Expression::Value(Value::Float64(5.7)),
-                eval_iterative(exp, env.clone(),).unwrap()
-            );
-        }
-
-        // f64 + i64
-        {
-            let exp = list![
-                Expression::Symbol("+"),
-                Value::Float64(2.5).into(),
-                Value::Int64(3).into()
-            ];
-
-            assert_eq!(
-                Expression::Value(Value::Float64(5.5)),
-                eval_iterative(exp, env.clone(),).unwrap()
-            );
-        };
-
-        // i64 + f64
-        {
-            let exp = list![
-                Expression::Symbol("+"),
-                Value::Int64(2).into(),
-                Value::Float64(3.2).into()
-            ];
-
-            assert_eq!(
-                Expression::Value(Value::Int64(5)),
-                eval_iterative(exp, env.clone(),).unwrap()
-            );
-        }
     }
 
     #[test]
@@ -206,5 +204,87 @@ mod tests {
         let result = eval_iterative(exp2, env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(15)), result)
+    }
+
+    #[test]
+    fn test_lambda_definition() {
+        let env = Env::new();
+        let expression: List<_> = list![
+            Expression::Symbol("lambda"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Value::Int64(3).into()
+            ]
+            .into()
+        ];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(
+            Expression::Value(Value::Lambda {
+                args: Box::from(list![Expression::Symbol("a")]),
+                body: Box::from(list![list![
+                    Expression::Symbol("+"),
+                    Expression::Symbol("a"),
+                    Value::Int64(3).into()
+                ]
+                .into()]),
+                env,
+            }),
+            result
+        )
+    }
+
+    #[test]
+    fn test_macro_definition() {
+        let env = Env::new();
+        let expression: List<_> = list![
+            Expression::Symbol("macro"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Value::Int64(3).into()
+            ]
+            .into()
+        ];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(
+            Expression::Value(Value::Macro {
+                args: Box::from(list![Expression::Symbol("a")]),
+                body: Box::from(list![list![
+                    Expression::Symbol("+"),
+                    Expression::Symbol("a"),
+                    Value::Int64(3).into()
+                ]
+                .into()]),
+            }),
+            result
+        )
+    }
+
+    #[test]
+    fn test_def_definition() {
+        let mut env = Env::new();
+        let expression: List<_> = list![
+            Expression::Symbol("def"),
+            Expression::Symbol("a"),
+            list![
+                Expression::Symbol("+"),
+                Value::Int64(1).into(),
+                Value::Int64(2).into()
+            ]
+            .into()
+        ];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(Expression::Value(Value::Nil), result);
+
+        assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap())
     }
 }

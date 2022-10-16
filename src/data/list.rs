@@ -67,6 +67,18 @@ impl<T> List<T> {
         matches!(self, List::Empty)
     }
 
+    pub(crate) fn len(&self) -> i64 {
+        let mut len = 0;
+        let mut cursor = self;
+
+        while let List::Normal { car: _, cdr } = cursor {
+            len += 1;
+            cursor = cdr;
+        }
+
+        len
+    }
+
     pub(crate) fn push(self, item: T) -> List<T> {
         match self {
             List::Empty => self.unshift(item),
