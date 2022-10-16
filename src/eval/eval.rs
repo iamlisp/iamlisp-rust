@@ -117,6 +117,7 @@ fn apply_fn(
         Expression::Symbol("+") => Sum::apply(args, env)?,
         Expression::Symbol("*") => Multiply::apply(args, env)?,
         Expression::Symbol("-") => Subtract::apply(args, env)?,
+        Expression::Symbol("/") => Divide::apply(args, env)?,
         Expression::Symbol("list") => List::clone(&args).into(),
         expression => bail!("Expression is not callable type: {}", expression),
     })
