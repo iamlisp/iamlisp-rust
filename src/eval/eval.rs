@@ -37,13 +37,9 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             Some(Expression::List(args)) => args,
                             _ => bail!("Unexpected type of lambda arguments"),
                         };
-                        output = output.push(
-                            Value::Macro {
-                                args,
-                                body: Box::new(input),
-                            }
-                            .into(),
-                        );
+                        let body = Box::new(input);
+
+                        output = output.push(Value::Macro { args, body }.into());
                         input = List::new();
                     }
                     (Some(Expression::Symbol("lambda")), true) => {
@@ -52,14 +48,9 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             Some(Expression::List(args)) => args,
                             _ => bail!("Unexpected type of lambda arguments"),
                         };
-                        output = output.push(
-                            Value::Lambda {
-                                args,
-                                env,
-                                body: Box::new(input),
-                            }
-                            .into(),
-                        );
+                        let body = Box::new(input);
+
+                        output = output.push(Value::Lambda { args, env, body }.into());
                         input = List::new();
                     }
                     (Some(Expression::Symbol(name)), _) => {
