@@ -11,13 +11,13 @@ struct StackEntry {
 }
 
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
-    let stack_entry = StackEntry {
+    let initial_entry = StackEntry {
         input: exp,
         output: list![],
         env,
     };
+    let mut stack = list![initial_entry];
 
-    let mut stack = list![stack_entry];
     let mut last_return_value = Value::Nil.into();
 
     loop {
@@ -28,8 +28,9 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                 env,
             }) => {
                 match (input.pop_mut(), output.is_empty()) {
+                    // check special forms only if they are at begin of the list
+                    // we assume that "begin" means that output is empty
                     (Some(Expression::Symbol("def")), true) => todo!(),
-                    (Some(Expression::Symbol("list")), true) => todo!(),
                     (Some(Expression::Symbol("macro")), true) => {
                         let args = match input.pop_mut() {
                             Some(Expression::List(args)) => args,
@@ -111,17 +112,36 @@ fn apply_fn(
     args: &List<Expression>,
     _env: &Env,
 ) -> anyhow::Result<Expression> {
-    let args_vec = List::clone(&args).into_iter().collect::<Vec<_>>();
-
-    match callable {
-        Expression::Symbol("+") => match &args_vec.as_slice() {
-            [Expression::Value(Value::Int64(a)), Expression::Value(Value::Int64(b))] => {
-                Ok(Value::Int64(a + b).into())
-            }
-            _ => bail!("Unsupported arguments"),
+    Ok(match callable {
+        Expression::Symbol("+") => match args.head() {
+            Some(Expression::Value(Value::Int64(_))) => Value::Int64(
+                List::clone(&args)
+                    .into_iter()
+                    .try_fold(0, |acc, exp| match exp {
+                        Expression::Value(Value::Int64(val)) => Ok(acc + val),
+                        Expression::Value(Value::Float64(val)) => Ok(acc + (val as i64)),
+                        x => bail!("Unable to sum {} with {}", acc, x),
+                    })?,
+            )
+            .into(),
+            Some(Expression::Value(Value::Float64(_))) => Value::Float64(
+                List::clone(&args)
+                    .into_iter()
+                    .try_fold(0.0, |acc, exp| match exp {
+                        Expression::Value(Value::Int64(val)) => Ok(acc + (val as f64)),
+                        Expression::Value(Value::Float64(val)) => Ok(acc + val),
+                        x => bail!("Unable to sum {} with {}", acc, x),
+                    })?,
+            )
+            .into(),
+            _ => bail!(
+                "Function not implemented for this kind of arguments: {}",
+                args
+            ),
         },
-        expression => bail!("Unsupported callable type: {}", expression),
-    }
+        Expression::Symbol("list") => List::clone(&args).into(),
+        expression => bail!("Expression is not callable type: {}", expression),
+    })
 }
 
 #[cfg(test)]
@@ -141,15 +161,62 @@ mod tests {
     #[test]
     fn test_eval_sum_of_two_numbers() {
         let env = Env::new();
-        let exp: List<_> = list![
-            Expression::Symbol("+"),
-            Value::Int64(2).into(),
-            Value::Int64(3).into()
-        ];
 
-        let result = eval_iterative(exp, env).unwrap();
+        // i64 + i64
+        {
+            let exp = list![
+                Expression::Symbol("+"),
+                Value::Int64(2).into(),
+                Value::Int64(3).into()
+            ];
 
-        assert_eq!(Expression::Value(Value::Int64(5)), result)
+            assert_eq!(
+                Expression::Value(Value::Int64(5)),
+                eval_iterative(exp, env.clone(),).unwrap()
+            );
+        };
+
+        // f64 + f64
+        {
+            let exp = list![
+                Expression::Symbol("+"),
+                Value::Float64(2.5).into(),
+                Value::Float64(3.2).into()
+            ];
+
+            assert_eq!(
+                Expression::Value(Value::Float64(5.7)),
+                eval_iterative(exp, env.clone(),).unwrap()
+            );
+        }
+
+        // f64 + i64
+        {
+            let exp = list![
+                Expression::Symbol("+"),
+                Value::Float64(2.5).into(),
+                Value::Int64(3).into()
+            ];
+
+            assert_eq!(
+                Expression::Value(Value::Float64(5.5)),
+                eval_iterative(exp, env.clone(),).unwrap()
+            );
+        };
+
+        // i64 + f64
+        {
+            let exp = list![
+                Expression::Symbol("+"),
+                Value::Int64(2).into(),
+                Value::Float64(3.2).into()
+            ];
+
+            assert_eq!(
+                Expression::Value(Value::Int64(5)),
+                eval_iterative(exp, env.clone(),).unwrap()
+            );
+        }
     }
 
     #[test]
