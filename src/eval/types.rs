@@ -1,16 +1,42 @@
 use crate::data::List;
+use anyhow::{anyhow, Result};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::sync::{Arc, Mutex};
 
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) struct Env {}
+#[derive(Debug, Clone)]
+pub(crate) struct Env {
+    values: Arc<Mutex<HashMap<&'static str, Expression>>>,
+}
 
 impl Env {
     pub(crate) fn new() -> Self {
-        Self {}
+        Self {
+            values: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
-    pub(crate) fn get(&self, name: &'static str) -> Expression {
-        Expression::Symbol(name.clone())
+    pub(crate) fn get(&self, name: &'static str) -> Result<Expression> {
+        self.values
+            .lock()
+            .unwrap()
+            .get(name)
+            .map(Clone::clone)
+            .ok_or_else(|| anyhow!("Variable is not defined: {}", name))
+    }
+
+    pub(crate) fn set(&mut self, name: &'static str, value: Expression) {
+        self.values.lock().unwrap().insert(name, value);
+    }
+}
+
+impl PartialEq for Env {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+
+    fn ne(&self, _other: &Self) -> bool {
+        false
     }
 }
 
