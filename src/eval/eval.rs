@@ -1,6 +1,5 @@
 use crate::data::List;
 use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
-use crate::eval::types::Value::{Lambda, Macro};
 use crate::eval::types::{Env, Expression, Value};
 use crate::list;
 use anyhow::bail;
@@ -34,15 +33,11 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     // we assume that "begin" means that output is empty
                     (Some(Expression::Symbol("def")), true) => todo!(),
                     (Some(Expression::Symbol("macro")), true) => {
-                        let macro_expr = List::cons(Expression::Symbol("macro"), input).into();
-
-                        output = output.push(macro_expr);
+                        output = List::cons(Expression::Symbol("macro"), input);
                         input = List::new();
                     }
                     (Some(Expression::Symbol("lambda")), true) => {
-                        let lambda_expr = List::cons(Expression::Symbol("lambda"), input).into();
-
-                        output = output.push(lambda_expr);
+                        output = List::cons(Expression::Symbol("lambda"), input);
                         input = List::new();
                     }
                     (Some(Expression::Symbol(name)), _) => {
@@ -115,11 +110,12 @@ fn apply_callable(
             };
             let lambda_body = List::clone(args.tail());
 
-            Expression::Value(Lambda {
+            Value::Lambda {
                 args: Box::from(lambda_args),
                 body: Box::from(lambda_body),
                 env: env.clone(),
-            })
+            }
+            .into()
         }
         Expression::Symbol("macro") => {
             let lambda_args = match args.head() {
@@ -132,10 +128,11 @@ fn apply_callable(
             };
             let lambda_body = List::clone(args.tail());
 
-            Expression::Value(Macro {
+            Value::Macro {
                 args: Box::from(lambda_args),
                 body: Box::from(lambda_body),
-            })
+            }
+            .into()
         }
 
         // exception
@@ -235,5 +232,66 @@ mod tests {
         let result = eval_iterative(exp2, env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(15)), result)
+    }
+
+    #[test]
+    fn test_lambda_definition() {
+        let env = Env::new();
+        let expression: List<_> = list![
+            Expression::Symbol("lambda"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Value::Int64(3).into()
+            ]
+            .into()
+        ];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(
+            Expression::Value(Value::Lambda {
+                args: Box::from(list![Expression::Symbol("a")]),
+                body: Box::from(list![list![
+                    Expression::Symbol("+"),
+                    Expression::Symbol("a"),
+                    Value::Int64(3).into()
+                ]
+                .into()]),
+                env,
+            }),
+            result
+        )
+    }
+
+    #[test]
+    fn test_macro_definition() {
+        let env = Env::new();
+        let expression: List<_> = list![
+            Expression::Symbol("macro"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Value::Int64(3).into()
+            ]
+            .into()
+        ];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(
+            Expression::Value(Value::Macro {
+                args: Box::from(list![Expression::Symbol("a")]),
+                body: Box::from(list![list![
+                    Expression::Symbol("+"),
+                    Expression::Symbol("a"),
+                    Value::Int64(3).into()
+                ]
+                .into()]),
+            }),
+            result
+        )
     }
 }
