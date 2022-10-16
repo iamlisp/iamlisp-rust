@@ -1,5 +1,6 @@
 use crate::data::List;
 use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
+use crate::eval::types::Value::{Lambda, Macro};
 use crate::eval::types::{Env, Expression, Value};
 use crate::list;
 use anyhow::bail;
@@ -33,24 +34,15 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     // we assume that "begin" means that output is empty
                     (Some(Expression::Symbol("def")), true) => todo!(),
                     (Some(Expression::Symbol("macro")), true) => {
-                        let args = match input.pop_mut() {
-                            Some(Expression::List(args)) => args,
-                            _ => bail!("Unexpected type of lambda arguments"),
-                        };
-                        let body = Box::new(input);
+                        let macro_expr = List::cons(Expression::Symbol("macro"), input).into();
 
-                        output = output.push(Value::Macro { args, body }.into());
+                        output = output.push(macro_expr);
                         input = List::new();
                     }
                     (Some(Expression::Symbol("lambda")), true) => {
-                        let env = env.clone();
-                        let args = match input.pop_mut() {
-                            Some(Expression::List(args)) => args,
-                            _ => bail!("Unexpected type of lambda arguments"),
-                        };
-                        let body = Box::new(input);
+                        let lambda_expr = List::cons(Expression::Symbol("lambda"), input).into();
 
-                        output = output.push(Value::Lambda { args, env, body }.into());
+                        output = output.push(lambda_expr);
                         input = List::new();
                     }
                     (Some(Expression::Symbol(name)), _) => {
@@ -76,7 +68,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             List::Normal {
                                 car: callable,
                                 cdr: args,
-                            } => apply_fn(&callable, &args, &env)?,
+                            } => apply_callable(&callable, &args, &env)?,
                             List::Empty => List::new().into(),
                         };
 
@@ -99,7 +91,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     }
 }
 
-fn apply_fn(
+fn apply_callable(
     callable: &Expression,
     args: &List<Expression>,
     env: &Env,
@@ -110,6 +102,43 @@ fn apply_fn(
         Expression::Symbol("-") => Subtract::apply(args, env)?,
         Expression::Symbol("/") => Divide::apply(args, env)?,
         Expression::Symbol("list") => List::clone(&args).into(),
+
+        // special forms
+        Expression::Symbol("lambda") => {
+            let lambda_args = match args.head() {
+                Some(Expression::List(args)) => List::clone(args),
+                Some(ex) => bail!(
+                    "Syntax error: lambda arguments should be a list, but it was: {}",
+                    ex
+                ),
+                None => bail!("Syntax error: lambda should have arguments list"),
+            };
+            let lambda_body = List::clone(args.tail());
+
+            Expression::Value(Lambda {
+                args: Box::from(lambda_args),
+                body: Box::from(lambda_body),
+                env: env.clone(),
+            })
+        }
+        Expression::Symbol("macro") => {
+            let lambda_args = match args.head() {
+                Some(Expression::List(args)) => List::clone(args),
+                Some(ex) => bail!(
+                    "Syntax error: macro arguments should be a list, but it was: {}",
+                    ex
+                ),
+                None => bail!("Syntax error: macro should have arguments list"),
+            };
+            let lambda_body = List::clone(args.tail());
+
+            Expression::Value(Macro {
+                args: Box::from(lambda_args),
+                body: Box::from(lambda_body),
+            })
+        }
+
+        // exception
         expression => bail!("Expression is not callable type: {}", expression),
     })
 }
