@@ -1,0 +1,17 @@
+use crate::data::List;
+use crate::eval::types::{Env, Expression};
+use anyhow::{bail, Result};
+
+pub(crate) use divide::Divide;
+pub(crate) use multiply::Multiply;
+pub(crate) use subtract::Subtract;
+pub(crate) use sum::Sum;
+
+mod divide;
+mod multiply;
+mod subtract;
+mod sum;
+
+pub(crate) trait Op {
+    fn apply(args: &List<Expression>, env: &Env) -> Result<Expression>;
+}
