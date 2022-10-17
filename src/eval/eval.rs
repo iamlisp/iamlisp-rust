@@ -6,6 +6,7 @@ use anyhow::bail;
 use std::mem::take;
 
 struct StackEntry {
+    operator: Option<Expression>,
     input: List<Expression>,
     output: List<Expression>,
     env: Env,
@@ -15,6 +16,7 @@ const SPECIAL_FORMS: [&str; 4] = ["+", "-", "/", "*"];
 
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
+        operator: None,
         input: exp,
         output: list![],
         env,
@@ -26,10 +28,64 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     loop {
         match stack.pop_mut() {
             Some(StackEntry {
+                mut operator,
                 mut input,
                 mut output,
                 mut env,
             }) => {
+                while let Some(expression) = input.pop_mut() {
+                    match expression {
+                        Expression::Symbol("lambda") if operator.is_none() => {
+                            let lambda_args = match input.head() {
+                                Some(Expression::List(args)) => List::clone(args),
+                                Some(ex) => {
+                                    bail!(
+                                        "Syntax error: unexpected token in lambda arguments: {}",
+                                        ex
+                                    );
+                                }
+                                None => {
+                                    bail!("Syntax error: lambda does not have arguments token");
+                                }
+                            };
+                            let lambda_body = List::clone(input.tail());
+
+                            output = output.push(
+                                Value::Lambda {
+                                    args: Box::from(lambda_args),
+                                    body: Box::from(lambda_body),
+                                    env: env.clone(),
+                                }
+                                .into(),
+                            );
+                        }
+                        Expression::Symbol("macro") if operator.is_none() => {
+                            let macro_args = match input.head() {
+                                Some(Expression::List(args)) => List::clone(args),
+                                Some(ex) => {
+                                    bail!(
+                                        "Syntax error: unexpected token in macro arguments: {}",
+                                        ex
+                                    );
+                                }
+                                None => {
+                                    bail!("Syntax error: macro does not have arguments token");
+                                }
+                            };
+                            let macro_body = List::clone(input.tail());
+
+                            output = output.push(
+                                Value::Macro {
+                                    args: Box::from(macro_args),
+                                    body: Box::from(macro_body),
+                                }
+                                .into(),
+                            );
+                        }
+                        expression => (),
+                    }
+                }
+
                 match (input.pop_mut(), output.is_empty()) {
                     (Some(Expression::Symbol("def")), true) => {
                         output = output.push(Expression::Symbol("def"));
