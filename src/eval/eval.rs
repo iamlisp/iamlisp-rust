@@ -33,6 +33,22 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                 mut output,
                 mut env,
             }) => {
+                loop {
+                    let result = if operator.is_none() {
+                        let value = match input.pop_mut() {
+                            Some(value) => value,
+                            None => List::new().into(),
+                        };
+                        operator.replace(value);
+                        continue;
+                    };
+
+                    match operator.iter().next() {
+                        Some(Expression::Symbol("lambda")) => {}
+                        None => {}
+                    }
+                }
+
                 while let Some(expression) = input.pop_mut() {
                     match expression {
                         Expression::Symbol("lambda") if operator.is_none() => {
@@ -82,6 +98,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                 .into(),
                             );
                         }
+                        Expression::Symbol("def") => operator.replace(Expression::Symbol("def")),
                         expression => (),
                     }
                 }
