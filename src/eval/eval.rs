@@ -189,7 +189,13 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                             new_env.set(name, value);
                                         }
 
-                                        todo!()
+                                        stack = stack.push_top(StackEntry {
+                                            input: List::cons(Expression::Symbol("begin"), *body),
+                                            output: List::new(),
+                                            env: new_env,
+                                        });
+
+                                        continue;
                                     }
                                     Expression::Value(Value::Macro { args, body }) => {
                                         todo!()
