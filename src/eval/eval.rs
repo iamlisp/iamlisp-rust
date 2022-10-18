@@ -190,7 +190,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         }
 
                                         stack = stack.push_top(StackEntry {
-                                            input: List::cons(Expression::Symbol("begin"), *body),
+                                            input: List::cons(Expression::Symbol("quote"), *body),
                                             output: List::new(),
                                             env: new_env,
                                         });
@@ -294,6 +294,26 @@ mod tests {
             }),
             result
         )
+    }
+
+    #[test]
+    fn test_lambda_call() {
+        let env = Env::new();
+        let lambda: List<_> = list![
+            Expression::Symbol("lambda"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Expression::Symbol("a")
+            ]
+            .into()
+        ];
+        let expression = list![lambda.into(), Value::Int64(10).into()];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(Expression::Value(Value::Int64(20)), result);
     }
 
     #[test]
