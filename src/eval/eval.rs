@@ -104,24 +104,24 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         let result = match take(&mut stack_entry.output) {
                             List::Normal {
                                 car: callable,
-                                cdr: args,
+                                cdr: args_values,
                             } => {
                                 let env = &stack_entry.env;
                                 match callable {
                                     // Math expressions
-                                    Expression::Symbol("+") => Sum::apply(&args, env)?,
-                                    Expression::Symbol("*") => Multiply::apply(&args, env)?,
-                                    Expression::Symbol("-") => Subtract::apply(&args, env)?,
-                                    Expression::Symbol("/") => Divide::apply(&args, env)?,
-                                    Expression::Symbol("list") => List::clone(&args).into(),
+                                    Expression::Symbol("+") => Sum::apply(&args_values, env)?,
+                                    Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
+                                    Expression::Symbol("-") => Subtract::apply(&args_values, env)?,
+                                    Expression::Symbol("/") => Divide::apply(&args_values, env)?,
+                                    Expression::Symbol("list") => List::clone(&args_values).into(),
 
                                     // Special forms
-                                    Expression::Symbol("quote") => match args.head() {
+                                    Expression::Symbol("quote") => match args_values.head() {
                                         Some(expression) => expression.clone(),
                                         None => Value::Nil.into(),
                                     },
                                     Expression::Symbol("def") => {
-                                        let mut items = List::clone(&args);
+                                        let mut items = List::clone(&args_values);
 
                                         while !items.is_empty() {
                                             let name = match items.pop_mut() {
@@ -141,16 +141,16 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                     }
 
                                     Expression::Value(Value::Lambda {
-                                        args: arg_names,
+                                        args: args_names,
                                         body,
                                         env,
                                     }) => {
                                         let new_env = env.child();
 
-                                        let names = List::clone(&arg_names);
-                                        let mut values = List::clone(&args);
+                                        let mut values = List::clone(&args_values);
 
-                                        while let Some(name_expression) = names.into_iter().next() {
+                                        let mut names_iter = List::clone(&args_names).into_iter();
+                                        while let Some(name_expression) = names_iter.next() {
                                             let name = match name_expression {
                                                 Expression::Symbol(name) => name,
                                                 exp => bail!(
@@ -160,7 +160,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                             };
                                             let value = match values.pop_mut() {
                                                 Some(value) => value,
-                                                None => bail!("Runtime error: lambda expects {} arguments, but called with {}", arg_names.len(), args.len())
+                                                None => bail!("Runtime error: lambda expects {} arguments, but called with {}", args_names.len(), args_values.len())
                                             };
                                             new_env.set(name, value);
                                         }
@@ -175,7 +175,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                     other => bail!(
                                         "Expression is not callable type: {} (args: {})",
                                         other,
-                                        args
+                                        args_values
                                     ),
                                 }
                             }

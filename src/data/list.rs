@@ -10,13 +10,11 @@ macro_rules! list {
     }};
     ($($args:expr),*) => {{
         let mut list = $crate::data::List::new();
-        let mut index = 0;
 
         $(
             #[allow(unused_assignments)]
             {
                 list = list.push_top($args);
-                index = index + 1;
             }
         )*
 
