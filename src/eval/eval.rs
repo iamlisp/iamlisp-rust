@@ -195,6 +195,8 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         }
 
                                         stack = stack.push_top(StackEntry {
+                                            // @todo Introduce "begin" special form to allow lambdas
+                                            //       having multiple expressions in body.
                                             input: List::cons(Expression::Symbol("quote"), *body),
                                             output: List::new(),
                                             env: new_env,
