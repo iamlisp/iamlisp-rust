@@ -140,6 +140,13 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         Value::Nil.into()
                                     }
 
+                                    Expression::Value(Value::Lambda { args, body, env }) => {
+                                        todo!()
+                                    }
+                                    Expression::Value(Value::Macro { args, body }) => {
+                                        todo!()
+                                    }
+
                                     // exception
                                     other => bail!(
                                         "Expression is not callable type: {} (args: {})",
