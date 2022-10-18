@@ -166,7 +166,11 @@ fn apply_callable(
         }
 
         // exception
-        other => bail!("Expression is not callable type: {} ({})", other, args),
+        other => bail!(
+            "Expression is not callable type: {} (args: {})",
+            other,
+            args
+        ),
     };
 
     Ok(result)
