@@ -105,7 +105,49 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             List::Normal {
                                 car: callable,
                                 cdr: args,
-                            } => apply_callable(&callable, &args, &mut stack_entry.env)?,
+                            } => {
+                                let env = &stack_entry.env;
+                                match callable {
+                                    // Math expressions
+                                    Expression::Symbol("+") => Sum::apply(&args, env)?,
+                                    Expression::Symbol("*") => Multiply::apply(&args, env)?,
+                                    Expression::Symbol("-") => Subtract::apply(&args, env)?,
+                                    Expression::Symbol("/") => Divide::apply(&args, env)?,
+                                    Expression::Symbol("list") => List::clone(&args).into(),
+
+                                    // Special forms
+                                    Expression::Symbol("quote") => match args.head() {
+                                        Some(expression) => expression.clone(),
+                                        None => Value::Nil.into(),
+                                    },
+                                    Expression::Symbol("def") => {
+                                        let mut items = List::clone(&args);
+
+                                        while !items.is_empty() {
+                                            let name = match items.pop_mut() {
+                                                Some(Expression::Symbol(name)) => name,
+                                                _ => bail!("Syntax error: unexpected token at variable name position"),
+                                            };
+                                            let value = match items.pop_mut() {
+                                                Some(value) => value,
+                                                None => bail!(
+                                                    "Syntax error: variable should have value"
+                                                ),
+                                            };
+                                            stack_entry.env.set(name, value);
+                                        }
+
+                                        Value::Nil.into()
+                                    }
+
+                                    // exception
+                                    other => bail!(
+                                        "Expression is not callable type: {} (args: {})",
+                                        other,
+                                        args
+                                    ),
+                                }
+                            }
                             List::Empty => List::new().into(),
                         };
 
@@ -127,53 +169,6 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
             None => return Ok(last_return_value),
         }
     }
-}
-
-fn apply_callable(
-    callable: &Expression,
-    args: &List<Expression>,
-    env: &mut Env,
-) -> anyhow::Result<Expression> {
-    let result = match callable {
-        // Math expressions
-        Expression::Symbol("+") => Sum::apply(args, env)?,
-        Expression::Symbol("*") => Multiply::apply(args, env)?,
-        Expression::Symbol("-") => Subtract::apply(args, env)?,
-        Expression::Symbol("/") => Divide::apply(args, env)?,
-        Expression::Symbol("list") => List::clone(&args).into(),
-
-        // Special forms
-        Expression::Symbol("quote") => match args.head() {
-            Some(expression) => expression.clone(),
-            None => Value::Nil.into(),
-        },
-        Expression::Symbol("def") => {
-            let mut items = List::clone(args);
-
-            while !items.is_empty() {
-                let name = match items.pop_mut() {
-                    Some(Expression::Symbol(name)) => name,
-                    _ => bail!("Syntax error: unexpected token at variable name position"),
-                };
-                let value = match items.pop_mut() {
-                    Some(value) => value,
-                    None => bail!("Syntax error: variable should have value"),
-                };
-                env.set(name, value);
-            }
-
-            Value::Nil.into()
-        }
-
-        // exception
-        other => bail!(
-            "Expression is not callable type: {} (args: {})",
-            other,
-            args
-        ),
-    };
-
-    Ok(result)
 }
 
 #[cfg(test)]
@@ -272,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_def_definition() {
-        let mut env = Env::new();
+        let env = Env::new();
         let expression: List<_> = list![
             Expression::Symbol("def"),
             Expression::Symbol("a"),
