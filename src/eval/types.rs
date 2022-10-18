@@ -27,7 +27,7 @@ impl Env {
             .or_else(|| self.parent.as_ref().map(|e| e.get(name)).flatten())
     }
 
-    pub(crate) fn set(&mut self, name: &'static str, value: Expression) {
+    pub(crate) fn set(&self, name: &'static str, value: Expression) {
         self.values.lock().unwrap().insert(name, value);
     }
 

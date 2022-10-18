@@ -140,7 +140,31 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         Value::Nil.into()
                                     }
 
-                                    Expression::Value(Value::Lambda { args, body, env }) => {
+                                    Expression::Value(Value::Lambda {
+                                        args: arg_names,
+                                        body,
+                                        env,
+                                    }) => {
+                                        let new_env = env.child();
+
+                                        let names = List::clone(&arg_names);
+                                        let mut values = List::clone(&args);
+
+                                        while let Some(name_expression) = names.into_iter().next() {
+                                            let name = match name_expression {
+                                                Expression::Symbol(name) => name,
+                                                exp => bail!(
+                                                    "Syntax error: unexpected argument name: {}",
+                                                    exp
+                                                ),
+                                            };
+                                            let value = match values.pop_mut() {
+                                                Some(value) => value,
+                                                None => bail!("Runtime error: lambda expects {} arguments, but called with {}", arg_names.len(), args.len())
+                                            };
+                                            new_env.set(name, value);
+                                        }
+
                                         todo!()
                                     }
                                     Expression::Value(Value::Macro { args, body }) => {
