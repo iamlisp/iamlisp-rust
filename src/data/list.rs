@@ -10,13 +10,11 @@ macro_rules! list {
     }};
     ($($args:expr),*) => {{
         let mut list = $crate::data::List::new();
-        let mut index = 0;
 
         $(
             #[allow(unused_assignments)]
             {
-                list = list.unshift($args);
-                index = index + 1;
+                list = list.push_top($args);
             }
         )*
 
@@ -81,7 +79,7 @@ impl<T> List<T> {
 
     pub(crate) fn push(self, item: T) -> List<T> {
         match self {
-            List::Empty => self.unshift(item),
+            List::Empty => self.push_top(item),
             List::Normal { car, cdr } => List::Normal {
                 car,
                 cdr: Box::new(cdr.push(item)),
@@ -89,7 +87,7 @@ impl<T> List<T> {
         }
     }
 
-    pub(crate) fn unshift(self, item: T) -> List<T> {
+    pub(crate) fn push_top(self, item: T) -> List<T> {
         List::Normal {
             car: item,
             cdr: Box::new(self),
@@ -101,7 +99,7 @@ impl<T> List<T> {
         let mut current = self;
 
         while let List::Normal { car, cdr } = current {
-            acc = acc.unshift(car);
+            acc = acc.push_top(car);
             current = *cdr;
         }
 
@@ -116,7 +114,7 @@ impl<T> List<T> {
         let mut current = self.reverse();
 
         while let List::Normal { car, cdr } = current {
-            acc = acc.unshift(cb(car));
+            acc = acc.push_top(cb(car));
             current = *cdr;
         }
 
@@ -132,7 +130,7 @@ impl<T> List<T> {
 
         while let List::Normal { car, cdr } = current {
             if cb(&car) {
-                acc = acc.unshift(car);
+                acc = acc.push_top(car);
             }
 
             current = *cdr;
@@ -247,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_unshift() {
-        let list = List::new().unshift(10).unshift(20);
+        let list = List::new().push_top(10).push_top(20);
 
         assert_eq!("(20 10)", list.to_string());
     }
