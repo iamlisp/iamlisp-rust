@@ -8,27 +8,32 @@ use std::mem::take;
 /*
     Lambda call explanation:
 
-    1. [] ((lambda (a) (+ a 1)) 10)
+     1.   []                                ((lambda (a) (+ a 1)) 10)
 
-    2. [] (10)
-       [] (lambda (a) (+ a 1))
+     2.   []                                (10)
+          []                                (lambda (a) (+ a 1))
 
-    3. [] (10)
-       [quote (lambda (a) (+ a 1))] ()
+     3.   []                                (10)
+          [quote (lambda (a) (+ a 1))]      ()
 
-    4. [(lambda (a) (+ a 1))] (10)
+     4.   [(lambda (a) (+ a 1))]            (10)
 
-    5. [(lambda (a) (+ a 1)) 10] ()
+     5.   [(lambda (a) (+ a 1)) 10]         ()
 
-    6. [] (+ 10 1)
+     6.   []                                (begin (+ 10 1))
 
-    7. [+] (10 1)
+     7.   [begin]                           ()
+          []                                (+ 10 1)
 
-    8. [+ 10] (1)
+    ...
 
-    9. [+ 10 1] ()
+     9.   [begin]                           ()
+          [+ 10 1]                          ()
 
-    10. return 11
+
+    10.   [begin 11]                           ()
+
+    11.   result = 11
 */
 
 struct StackEntry {
