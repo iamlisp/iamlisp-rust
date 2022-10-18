@@ -16,13 +16,8 @@ impl Env {
         }
     }
 
-    pub(crate) fn get(&self, name: &'static str) -> Result<Expression> {
-        self.values
-            .lock()
-            .unwrap()
-            .get(name)
-            .map(Clone::clone)
-            .ok_or_else(|| anyhow!("Variable is not defined: {}", name))
+    pub(crate) fn get(&self, name: &'static str) -> Option<Expression> {
+        self.values.lock().unwrap().get(name).map(Clone::clone)
     }
 
     pub(crate) fn set(&mut self, name: &'static str, value: Expression) {

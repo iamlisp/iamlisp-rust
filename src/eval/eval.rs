@@ -6,7 +6,6 @@ use anyhow::bail;
 use std::mem::take;
 
 struct StackEntry {
-    operator: Option<Expression>,
     input: List<Expression>,
     output: List<Expression>,
     env: Env,
@@ -16,7 +15,6 @@ const SPECIAL_FORMS: [&str; 4] = ["+", "-", "/", "*"];
 
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
-        operator: None,
         input: exp,
         output: list![],
         env,
@@ -27,111 +25,87 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
 
     loop {
         match stack.pop_mut() {
-            Some(StackEntry {
-                mut operator,
-                mut input,
-                mut output,
-                mut env,
-            }) => {
-                while let Some(expression) = input.pop_mut() {
-                    match expression {
-                        Expression::Symbol("lambda") if operator.is_none() => {
-                            let lambda_args = match input.head() {
-                                Some(Expression::List(args)) => List::clone(args),
-                                Some(ex) => {
-                                    bail!(
-                                        "Syntax error: unexpected token in lambda arguments: {}",
-                                        ex
-                                    );
-                                }
-                                None => {
-                                    bail!("Syntax error: lambda does not have arguments token");
-                                }
-                            };
-                            let lambda_body = List::clone(input.tail());
+            Some(mut stack_entry) => {
+                match stack_entry.input.pop_mut() {
+                    Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
+                        let lambda_args = match stack_entry.input.head() {
+                            Some(Expression::List(args)) => List::clone(args),
+                            Some(ex) => {
+                                bail!("Syntax error: unexpected token in lambda arguments: {}", ex);
+                            }
+                            None => {
+                                bail!("Syntax error: lambda does not have arguments token");
+                            }
+                        };
+                        let lambda_body = List::clone(stack_entry.input.tail());
 
-                            output = output.push(
-                                Value::Lambda {
-                                    args: Box::from(lambda_args),
-                                    body: Box::from(lambda_body),
-                                    env: env.clone(),
-                                }
-                                .into(),
-                            );
-                        }
-                        Expression::Symbol("macro") if operator.is_none() => {
-                            let macro_args = match input.head() {
-                                Some(Expression::List(args)) => List::clone(args),
-                                Some(ex) => {
-                                    bail!(
-                                        "Syntax error: unexpected token in macro arguments: {}",
-                                        ex
-                                    );
-                                }
-                                None => {
-                                    bail!("Syntax error: macro does not have arguments token");
-                                }
-                            };
-                            let macro_body = List::clone(input.tail());
+                        stack_entry.input = List::new();
+                        stack_entry.output = stack_entry.output.push(Expression::Symbol("quote"));
+                        stack_entry.output = stack_entry.output.push(
+                            Value::Lambda {
+                                args: Box::from(lambda_args),
+                                body: Box::from(lambda_body),
+                                env: stack_entry.env.clone(),
+                            }
+                            .into(),
+                        );
+                    }
+                    Some(Expression::Symbol("macro")) if stack_entry.output.is_empty() => {
+                        let macro_args = match stack_entry.input.head() {
+                            Some(Expression::List(args)) => List::clone(args),
+                            Some(ex) => {
+                                bail!("Syntax error: unexpected token in macro arguments: {}", ex);
+                            }
+                            None => {
+                                bail!("Syntax error: macro does not have arguments token");
+                            }
+                        };
+                        let macro_body = List::clone(stack_entry.input.tail());
 
-                            output = output.push(
-                                Value::Macro {
-                                    args: Box::from(macro_args),
-                                    body: Box::from(macro_body),
-                                }
-                                .into(),
-                            );
-                        }
-                        Expression::Symbol("def") => operator.replace(Expression::Symbol("def")),
-                        expression => (),
+                        stack_entry.input = List::new();
+                        stack_entry.output = stack_entry.output.push(Expression::Symbol("quote"));
+                        stack_entry.output = stack_entry.output.push(
+                            Value::Macro {
+                                args: Box::from(macro_args),
+                                body: Box::from(macro_body),
+                            }
+                            .into(),
+                        );
                     }
-                }
-
-                match (input.pop_mut(), output.is_empty()) {
-                    (Some(Expression::Symbol("def")), true) => {
-                        output = output.push(Expression::Symbol("def"));
+                    Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
+                        stack_entry.output = stack_entry.output.push(Expression::Symbol("def"));
                     }
-                    (Some(Expression::Symbol("macro")), true) => {
-                        output = List::cons(Expression::Symbol("macro"), input);
-                        input = List::new();
-                    }
-                    (Some(Expression::Symbol("lambda")), true) => {
-                        output = List::cons(Expression::Symbol("lambda"), input);
-                        input = List::new();
-                    }
-                    (Some(Expression::Symbol(name)), false)
-                        if matches!(output.head(), Some(Expression::Symbol("def")))
-                            && output.len() % 2 == 1 =>
+                    Some(Expression::Symbol(name))
+                        if matches!(stack_entry.output.head(), Some(Expression::Symbol("def"))) =>
                     {
-                        output = output.push(Expression::Symbol(name));
+                        stack_entry.output = stack_entry.output.push(Expression::Symbol(name));
                     }
-                    (Some(Expression::Symbol(name)), _) if SPECIAL_FORMS.contains(&name) => {
-                        output = output.push(Expression::Symbol(name));
+                    Some(Expression::Symbol(name)) => {
+                        stack_entry.output = stack_entry.output.push(
+                            stack_entry
+                                .env
+                                .get(name)
+                                .unwrap_or_else(move || Expression::Symbol(name)),
+                        );
                     }
-                    (Some(Expression::Symbol(name)), _) => {
-                        output = output.push(env.get(name)?);
-                    }
-                    (Some(Expression::List(list)), _) => {
-                        stack = stack
-                            .unshift(StackEntry {
-                                input,
-                                output,
-                                env: env.clone(),
-                            })
-                            .unshift(StackEntry {
-                                input: *list,
-                                output: List::new(),
-                                env: env.clone(),
-                            });
+                    Some(Expression::List(list)) => {
+                        let new_env = stack_entry.env.clone();
+                        stack = stack.push_top(stack_entry).push_top(StackEntry {
+                            input: *list,
+                            output: List::new(),
+                            env: new_env,
+                        });
                         continue;
                     }
-                    (Some(expression), _) => output = output.push(expression),
-                    (None, _) => {
-                        let result = match take(&mut output) {
+                    Some(Expression::Value(value)) => {
+                        stack_entry.output = stack_entry.output.push(value.into());
+                    }
+                    None => {
+                        let result = match take(&mut stack_entry.output) {
                             List::Normal {
                                 car: callable,
                                 cdr: args,
-                            } => apply_callable(&callable, &args, &mut env)?,
+                            } => apply_callable(&callable, &args, &mut stack_entry.env)?,
                             List::Empty => List::new().into(),
                         };
 
@@ -147,7 +121,8 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         continue;
                     }
                 }
-                stack = stack.unshift(StackEntry { input, output, env });
+
+                stack = stack.push_top(stack_entry);
             }
             None => return Ok(last_return_value),
         }
@@ -159,66 +134,31 @@ fn apply_callable(
     args: &List<Expression>,
     env: &mut Env,
 ) -> anyhow::Result<Expression> {
-    Ok(match callable {
+    let result = match callable {
+        // Math expressions
         Expression::Symbol("+") => Sum::apply(args, env)?,
         Expression::Symbol("*") => Multiply::apply(args, env)?,
         Expression::Symbol("-") => Subtract::apply(args, env)?,
         Expression::Symbol("/") => Divide::apply(args, env)?,
         Expression::Symbol("list") => List::clone(&args).into(),
 
-        // special forms
-        Expression::Symbol("lambda") => {
-            let lambda_args = match args.head() {
-                Some(Expression::List(args)) => List::clone(args),
-                Some(ex) => bail!(
-                    "Syntax error: lambda arguments should be a list, but it was: {}",
-                    ex
-                ),
-                None => bail!("Syntax error: lambda should have arguments list"),
-            };
-            let lambda_body = List::clone(args.tail());
-
-            Value::Lambda {
-                args: Box::from(lambda_args),
-                body: Box::from(lambda_body),
-                env: env.clone(),
-            }
-            .into()
-        }
-        Expression::Symbol("macro") => {
-            let lambda_args = match args.head() {
-                Some(Expression::List(args)) => List::clone(args),
-                Some(ex) => bail!(
-                    "Syntax error: macro arguments should be a list, but it was: {}",
-                    ex
-                ),
-                None => bail!("Syntax error: macro should have arguments list"),
-            };
-            let lambda_body = List::clone(args.tail());
-
-            Value::Macro {
-                args: Box::from(lambda_args),
-                body: Box::from(lambda_body),
-            }
-            .into()
-        }
+        // Special forms
+        Expression::Symbol("quote") => match args.head() {
+            Some(expression) => expression.clone(),
+            None => Value::Nil.into(),
+        },
         Expression::Symbol("def") => {
-            let mut args = List::clone(&args);
+            let mut items = List::clone(args);
 
-            while !args.is_empty() {
-                let name = match args.pop_mut() {
+            while !items.is_empty() {
+                let name = match items.pop_mut() {
                     Some(Expression::Symbol(name)) => name,
-                    Some(other) => bail!(
-                        "Syntax error: variable name should be a symbol, but it was: {}",
-                        other
-                    ),
-                    None => bail!("Syntax error: def should have even number of arguments"),
+                    _ => bail!("Syntax error: unexpected token at variable name position"),
                 };
-                let value = match args.pop_mut() {
-                    Some(expr) => expr,
-                    None => bail!("Syntax error: def should have even number of arguments"),
+                let value = match items.pop_mut() {
+                    Some(value) => value,
+                    None => bail!("Syntax error: variable should have value"),
                 };
-
                 env.set(name, value);
             }
 
@@ -226,8 +166,10 @@ fn apply_callable(
         }
 
         // exception
-        other => bail!("Expression is not callable type: {}", other),
-    })
+        other => bail!("Expression is not callable type: {} ({})", other, args),
+    };
+
+    Ok(result)
 }
 
 #[cfg(test)]
