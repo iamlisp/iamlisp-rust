@@ -101,6 +101,16 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             .into(),
                         );
                     }
+                    Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
+                        stack_entry.output = stack_entry.output.push(Expression::Symbol("def"));
+                        let quoted_expression = match stack_entry.input.pop_mut() {
+                            Some(expression) => expression,
+                            None => Value::Nil.into(),
+                        };
+                        // Ignore other than first argument
+                        stack_entry.input = List::new();
+                        stack_entry.output = stack_entry.output.push(quoted_expression);
+                    }
                     Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
                         stack_entry.output = stack_entry.output.push(Expression::Symbol("def"));
                     }
@@ -149,6 +159,12 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         Some(expression) => expression.clone(),
                                         None => Value::Nil.into(),
                                     },
+                                    Expression::Symbol("begin") => {
+                                        match List::clone(&args_values).reverse().head() {
+                                            Some(expression) => expression.clone(),
+                                            None => Value::Nil.into(),
+                                        }
+                                    }
                                     Expression::Symbol("def") => {
                                         let mut items = List::clone(&args_values);
 
@@ -195,9 +211,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         }
 
                                         stack = stack.push_top(StackEntry {
-                                            // @todo Introduce "begin" special form to allow lambdas
-                                            //       having multiple expressions in body.
-                                            input: List::cons(Expression::Symbol("quote"), *body),
+                                            input: List::cons(Expression::Symbol("begin"), *body),
                                             output: List::new(),
                                             env: new_env,
                                         });
