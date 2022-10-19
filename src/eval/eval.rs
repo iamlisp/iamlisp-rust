@@ -102,7 +102,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         );
                     }
                     Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
-                        stack_entry.output.push(Expression::Symbol("def"));
+                        stack_entry.output.push(Expression::Symbol("quote"));
                         let quoted_expression = match stack_entry.input.pop() {
                             Some(expression) => expression,
                             None => Value::Nil.into(),
