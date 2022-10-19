@@ -14,7 +14,7 @@ macro_rules! list {
         $(
             #[allow(unused_assignments)]
             {
-                list = list.push_top($args);
+                list.push_top($args);
             }
         )*
 
@@ -77,21 +77,20 @@ impl<T> List<T> {
         len
     }
 
-    pub(crate) fn push(self, item: T) -> List<T> {
+    pub(crate) fn push(&mut self, item: T) -> &mut Self {
         match self {
             List::Empty => self.push_top(item),
-            List::Normal { car, cdr } => List::Normal {
-                car,
-                cdr: Box::new(cdr.push(item)),
-            },
+            List::Normal { car: _, cdr } => cdr.push(item),
         }
     }
 
-    pub(crate) fn push_top(self, item: T) -> List<T> {
-        List::Normal {
+    pub(crate) fn push_top(&mut self, item: T) -> &mut Self {
+        *self = List::Normal {
             car: item,
-            cdr: Box::new(self),
-        }
+            cdr: Box::new(take(self)),
+        };
+
+        self
     }
 
     pub(crate) fn reverse(self) -> List<T> {
@@ -99,7 +98,7 @@ impl<T> List<T> {
         let mut current = self;
 
         while let List::Normal { car, cdr } = current {
-            acc = acc.push_top(car);
+            acc.push_top(car);
             current = *cdr;
         }
 
@@ -114,7 +113,7 @@ impl<T> List<T> {
         let mut current = self.reverse();
 
         while let List::Normal { car, cdr } = current {
-            acc = acc.push_top(cb(car));
+            acc.push_top(cb(car));
             current = *cdr;
         }
 
@@ -130,7 +129,7 @@ impl<T> List<T> {
 
         while let List::Normal { car, cdr } = current {
             if cb(&car) {
-                acc = acc.push_top(car);
+                acc.push_top(car);
             }
 
             current = *cdr;
@@ -176,7 +175,7 @@ impl<T> FromIterator<T> for List<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut list = List::new();
         for item in iter {
-            list = list.push(item)
+            list.push(item);
         }
         list
     }
@@ -238,14 +237,18 @@ mod tests {
 
     #[test]
     fn test_push() {
-        let list = List::new().push(10).push(20);
+        let mut list = List::new();
+        list.push(10);
+        list.push(20);
 
         assert_eq!("(10 20)", list.to_string());
     }
 
     #[test]
     fn test_unshift() {
-        let list = List::new().push_top(10).push_top(20);
+        let mut list = List::new();
+        list.push_top(10);
+        list.push_top(20);
 
         assert_eq!("(20 10)", list.to_string());
     }
