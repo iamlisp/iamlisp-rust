@@ -53,9 +53,9 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     let mut last_return_value = Value::Nil.into();
 
     loop {
-        match stack.pop_mut() {
+        match stack.pop() {
             Some(mut stack_entry) => {
-                match stack_entry.input.pop_mut() {
+                match stack_entry.input.pop() {
                     Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
                         let lambda_args = match stack_entry.input.head() {
                             Some(Expression::List(args)) => List::clone(&args),
@@ -103,7 +103,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     }
                     Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
                         stack_entry.output.push(Expression::Symbol("def"));
-                        let quoted_expression = match stack_entry.input.pop_mut() {
+                        let quoted_expression = match stack_entry.input.pop() {
                             Some(expression) => expression,
                             None => Value::Nil.into(),
                         };
@@ -169,11 +169,11 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         let mut items = List::clone(&args_values);
 
                                         while !items.is_empty() {
-                                            let name = match items.pop_mut() {
+                                            let name = match items.pop() {
                                                 Some(Expression::Symbol(name)) => name,
                                                 _ => bail!("Syntax error: unexpected token at variable name position"),
                                             };
-                                            let value = match items.pop_mut() {
+                                            let value = match items.pop() {
                                                 Some(value) => value,
                                                 None => bail!(
                                                     "Syntax error: variable should have value"
@@ -203,7 +203,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                                     exp
                                                 ),
                                             };
-                                            let value = match values.pop_mut() {
+                                            let value = match values.pop() {
                                                 Some(value) => value,
                                                 None => bail!("Runtime error: lambda expects {} arguments, but called with {}", args_names.len(), args_values.len())
                                             };

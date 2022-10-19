@@ -138,7 +138,7 @@ impl<T> List<T> {
         acc
     }
 
-    pub(crate) fn pop_mut(&mut self) -> Option<T> {
+    pub(crate) fn pop(&mut self) -> Option<T> {
         match take(self) {
             List::Normal { car, cdr } => {
                 *self = *cdr;
@@ -287,7 +287,7 @@ mod tests {
 
         assert_eq!("(0 1 2 3)", list.to_string());
 
-        assert_eq!(Some(0), list.pop_mut());
+        assert_eq!(Some(0), list.pop());
 
         assert_eq!("(1 2 3)", list.to_string());
     }
