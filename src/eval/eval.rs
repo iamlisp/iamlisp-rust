@@ -8,27 +8,32 @@ use std::mem::take;
 /*
     Lambda call explanation:
 
-    1. [] ((lambda (a) (+ a 1)) 10)
+     1.   []                                ((lambda (a) (+ a 1)) 10)
 
-    2. [] (10)
-       [] (lambda (a) (+ a 1))
+     2.   []                                (10)
+          []                                (lambda (a) (+ a 1))
 
-    3. [] (10)
-       [quote (lambda (a) (+ a 1))] ()
+     3.   []                                (10)
+          [quote (lambda (a) (+ a 1))]      ()
 
-    4. [(lambda (a) (+ a 1))] (10)
+     4.   [(lambda (a) (+ a 1))]            (10)
 
-    5. [(lambda (a) (+ a 1)) 10] ()
+     5.   [(lambda (a) (+ a 1)) 10]         ()
 
-    6. [] (+ 10 1)
+     6.   []                                (begin (+ 10 1))
 
-    7. [+] (10 1)
+     7.   [begin]                           ()
+          []                                (+ 10 1)
 
-    8. [+ 10] (1)
+    ...
 
-    9. [+ 10 1] ()
+     9.   [begin]                           ()
+          [+ 10 1]                          ()
 
-    10. return 11
+
+    10.   [begin 11]                           ()
+
+    11.   result = 11
 */
 
 struct StackEntry {
@@ -48,12 +53,12 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     let mut last_return_value = Value::Nil.into();
 
     loop {
-        match stack.pop_mut() {
+        match stack.pop() {
             Some(mut stack_entry) => {
-                match stack_entry.input.pop_mut() {
+                match stack_entry.input.pop() {
                     Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
                         let lambda_args = match stack_entry.input.head() {
-                            Some(Expression::List(args)) => List::clone(args),
+                            Some(Expression::List(args)) => List::clone(&args),
                             Some(ex) => {
                                 bail!("Syntax error: unexpected token in lambda arguments: {}", ex);
                             }
@@ -64,8 +69,8 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         let lambda_body = List::clone(stack_entry.input.tail());
 
                         stack_entry.input = List::new();
-                        stack_entry.output = stack_entry.output.push(Expression::Symbol("quote"));
-                        stack_entry.output = stack_entry.output.push(
+                        stack_entry.output.push(Expression::Symbol("quote"));
+                        stack_entry.output.push(
                             Value::Lambda {
                                 args: Box::from(lambda_args),
                                 body: Box::from(lambda_body),
@@ -76,7 +81,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     }
                     Some(Expression::Symbol("macro")) if stack_entry.output.is_empty() => {
                         let macro_args = match stack_entry.input.head() {
-                            Some(Expression::List(args)) => List::clone(args),
+                            Some(Expression::List(args)) => List::clone(&args),
                             Some(ex) => {
                                 bail!("Syntax error: unexpected token in macro arguments: {}", ex);
                             }
@@ -87,8 +92,8 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         let macro_body = List::clone(stack_entry.input.tail());
 
                         stack_entry.input = List::new();
-                        stack_entry.output = stack_entry.output.push(Expression::Symbol("quote"));
-                        stack_entry.output = stack_entry.output.push(
+                        stack_entry.output.push(Expression::Symbol("quote"));
+                        stack_entry.output.push(
                             Value::Macro {
                                 args: Box::from(macro_args),
                                 body: Box::from(macro_body),
@@ -96,16 +101,26 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             .into(),
                         );
                     }
+                    Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
+                        stack_entry.output.push(Expression::Symbol("def"));
+                        let quoted_expression = match stack_entry.input.pop() {
+                            Some(expression) => expression,
+                            None => Value::Nil.into(),
+                        };
+                        // Ignore other than first argument
+                        stack_entry.input = List::new();
+                        stack_entry.output.push(quoted_expression);
+                    }
                     Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
-                        stack_entry.output = stack_entry.output.push(Expression::Symbol("def"));
+                        stack_entry.output.push(Expression::Symbol("def"));
                     }
                     Some(Expression::Symbol(name))
                         if matches!(stack_entry.output.head(), Some(Expression::Symbol("def"))) =>
                     {
-                        stack_entry.output = stack_entry.output.push(Expression::Symbol(name));
+                        stack_entry.output.push(Expression::Symbol(name));
                     }
                     Some(Expression::Symbol(name)) => {
-                        stack_entry.output = stack_entry.output.push(
+                        stack_entry.output.push(
                             stack_entry
                                 .env
                                 .get(name)
@@ -114,7 +129,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     }
                     Some(Expression::List(list)) => {
                         let new_env = stack_entry.env.clone();
-                        stack = stack.push_top(stack_entry).push_top(StackEntry {
+                        stack.push_top(stack_entry).push_top(StackEntry {
                             input: *list,
                             output: List::new(),
                             env: new_env,
@@ -122,7 +137,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         continue;
                     }
                     Some(Expression::Value(value)) => {
-                        stack_entry.output = stack_entry.output.push(value.into());
+                        stack_entry.output.push(value.into());
                     }
                     None => {
                         let result = match take(&mut stack_entry.output) {
@@ -144,15 +159,21 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                         Some(expression) => expression.clone(),
                                         None => Value::Nil.into(),
                                     },
+                                    Expression::Symbol("begin") => {
+                                        match List::clone(&args_values).reverse().head() {
+                                            Some(expression) => expression.clone(),
+                                            None => Value::Nil.into(),
+                                        }
+                                    }
                                     Expression::Symbol("def") => {
                                         let mut items = List::clone(&args_values);
 
                                         while !items.is_empty() {
-                                            let name = match items.pop_mut() {
+                                            let name = match items.pop() {
                                                 Some(Expression::Symbol(name)) => name,
                                                 _ => bail!("Syntax error: unexpected token at variable name position"),
                                             };
-                                            let value = match items.pop_mut() {
+                                            let value = match items.pop() {
                                                 Some(value) => value,
                                                 None => bail!(
                                                     "Syntax error: variable should have value"
@@ -182,14 +203,20 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                                     exp
                                                 ),
                                             };
-                                            let value = match values.pop_mut() {
+                                            let value = match values.pop() {
                                                 Some(value) => value,
                                                 None => bail!("Runtime error: lambda expects {} arguments, but called with {}", args_names.len(), args_values.len())
                                             };
                                             new_env.set(name, value);
                                         }
 
-                                        todo!()
+                                        stack.push_top(StackEntry {
+                                            input: List::cons(Expression::Symbol("begin"), *body),
+                                            output: List::new(),
+                                            env: new_env,
+                                        });
+
+                                        continue;
                                     }
                                     Expression::Value(Value::Macro { args, body }) => {
                                         todo!()
@@ -211,7 +238,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                             ..
                         }) = stack.head_mut()
                         {
-                            *prev_output = take(prev_output).push(result);
+                            prev_output.push(result);
                         } else {
                             last_return_value = result;
                         }
@@ -219,7 +246,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     }
                 }
 
-                stack = stack.push_top(stack_entry);
+                stack.push_top(stack_entry);
             }
             None => return Ok(last_return_value),
         }
@@ -288,6 +315,26 @@ mod tests {
             }),
             result
         )
+    }
+
+    #[test]
+    fn test_lambda_call() {
+        let env = Env::new();
+        let lambda: List<_> = list![
+            Expression::Symbol("lambda"),
+            list![Expression::Symbol("a")].into(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Expression::Symbol("a")
+            ]
+            .into()
+        ];
+        let expression = list![lambda.into(), Value::Int64(10).into()];
+
+        let result = eval_iterative(expression, env.clone()).unwrap();
+
+        assert_eq!(Expression::Value(Value::Int64(20)), result);
     }
 
     #[test]
