@@ -1,2 +1,2 @@
 // mod reader;
-// mod tokenizer;
+mod tokenizer;

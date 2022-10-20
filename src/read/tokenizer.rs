@@ -13,8 +13,8 @@ lazy_static! {
 pub enum Token {
     Symbol(Vec<char>),
     String(Vec<char>),
-    Integer(isize),
-    Float(f32),
+    Integer(i64),
+    Float(f64),
     Boolean(bool),
     LeftParen,
     RightParen,
@@ -172,9 +172,9 @@ fn tokenize(reader: &mut Reader) -> Result<Vec<Token>, String> {
                     tokens.push(Token::Dot)
                 } else if let Ok(bool) = String::from_iter(&chars).parse::<bool>() {
                     tokens.push(Token::Boolean(bool));
-                } else if let Ok(integer) = String::from_iter(&chars).parse::<isize>() {
+                } else if let Ok(integer) = String::from_iter(&chars).parse::<i64>() {
                     tokens.push(Token::Integer(integer));
-                } else if let Ok(float) = String::from_iter(&chars).parse::<f32>() {
+                } else if let Ok(float) = String::from_iter(&chars).parse::<f64>() {
                     tokens.push(Token::Float(float));
                 } else {
                     tokens.push(Token::Symbol(chars));
