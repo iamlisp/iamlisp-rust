@@ -148,6 +148,27 @@ impl<T> List<T> {
             List::Empty => None,
         }
     }
+
+    pub(crate) fn iter(&self) -> ListRefIter<T> {
+        ListRefIter { next: &self }
+    }
+}
+
+pub(crate) struct ListRefIter<'a, T> {
+    next: &'a List<T>,
+}
+
+impl<'a, T> Iterator for ListRefIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(t) = self.next.head() {
+            self.next = self.next.tail();
+            return Some(t);
+        }
+
+        None
+    }
 }
 
 impl<T: Display> Display for List<T> {

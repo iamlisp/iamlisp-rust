@@ -55,20 +55,16 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     loop {
         match stack.pop() {
             Some(mut stack_entry) => {
-                if let (
-                    Some(Expression::Symbol("def")),
-                    Some(Expression::Symbol(name)),
-                    Some(value),
-                ) = (
-                    stack_entry.output.head(),
-                    stack_entry.output.tail().head(),
-                    stack_entry.output.tail().tail().head(),
-                ) {
+                let output = stack_entry.output.iter().collect::<Vec<_>>();
+
+                if let &[Expression::Symbol("def"), Expression::Symbol(name), value] =
+                    output.as_slice()
+                {
                     stack_entry.env.set(name, value.clone());
-                    stack_entry.output = if stack_entry.input.is_empty() {
-                        list![Expression::Symbol("begin"), Value::Nil.into()]
-                    } else {
-                        list![]
+
+                    stack_entry.output = match stack_entry.input.is_empty() {
+                        true => list![Expression::Symbol("begin"), Value::Nil.into()],
+                        false => list![],
                     }
                 }
 
