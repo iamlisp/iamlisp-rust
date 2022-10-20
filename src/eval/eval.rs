@@ -55,7 +55,54 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     loop {
         match stack.pop() {
             Some(mut stack_entry) => {
+                if let (
+                    Some(Expression::Symbol("def")),
+                    Some(Expression::Symbol(name)),
+                    Some(value),
+                ) = (
+                    stack_entry.output.head(),
+                    stack_entry.output.tail().head(),
+                    stack_entry.output.tail().tail().head(),
+                ) {
+                    stack_entry.env.set(name, value.clone());
+                    stack_entry.output = if stack_entry.input.is_empty() {
+                        list![Expression::Symbol("begin"), Value::Nil.into()]
+                    } else {
+                        list![]
+                    }
+                }
+
                 match stack_entry.input.pop() {
+                    Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
+                        let var_name = match stack_entry.input.pop() {
+                            Some(Expression::Symbol(name)) => name,
+                            Some(t) => {
+                                bail!("Syntax error: unexpected token in variable name: {}", t)
+                            }
+                            None => bail!("Syntax error: variable should have name"),
+                        };
+                        let var_value = match stack_entry.input.pop() {
+                            Some(exp) => exp,
+                            None => bail!("Syntax error: variable should have value"),
+                        };
+                        let var_env = stack_entry.env.clone();
+
+                        stack_entry.output.push(Expression::Symbol("def"));
+                        stack_entry.output.push(Expression::Symbol(var_name));
+
+                        // If input still have remaining definitions, return "def" back into input.
+                        if !stack_entry.input.is_empty() {
+                            stack_entry.input.push_top(Expression::Symbol("def"));
+                        }
+
+                        stack.push_top(stack_entry);
+                        stack.push_top(StackEntry {
+                            input: list![Expression::Symbol("begin"), var_value],
+                            output: list![],
+                            env: var_env,
+                        });
+                        continue;
+                    }
                     Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
                         let lambda_args = match stack_entry.input.head() {
                             Some(Expression::List(args)) => List::clone(&args),
@@ -111,14 +158,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         stack_entry.input = List::new();
                         stack_entry.output.push(quoted_expression);
                     }
-                    Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
-                        stack_entry.output.push(Expression::Symbol("def"));
-                    }
-                    Some(Expression::Symbol(name))
-                        if matches!(stack_entry.output.head(), Some(Expression::Symbol("def"))) =>
-                    {
-                        stack_entry.output.push(Expression::Symbol(name));
-                    }
+
                     Some(Expression::Symbol(name)) => {
                         stack_entry.output.push(
                             stack_entry
@@ -230,7 +270,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                     ),
                                 }
                             }
-                            List::Empty => List::new().into(),
+                            List::Empty => list![].into(),
                         };
 
                         if let Some(StackEntry {
@@ -378,6 +418,13 @@ mod tests {
                 Value::Int64(1).into(),
                 Value::Int64(2).into()
             ]
+            .into(),
+            Expression::Symbol("b"),
+            list![
+                Expression::Symbol("*"),
+                Expression::Symbol("a"),
+                Value::Int64(2).into()
+            ]
             .into()
         ];
 
@@ -385,6 +432,7 @@ mod tests {
 
         assert_eq!(Expression::Value(Value::Nil), result);
 
-        assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap())
+        assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap());
+        assert_eq!(Expression::Value(Value::Int64(6)), env.get("b").unwrap());
     }
 }
