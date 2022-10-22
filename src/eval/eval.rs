@@ -4,6 +4,7 @@ use crate::eval::types::{Env, Expression, Value};
 use crate::list;
 use anyhow::bail;
 use std::mem::take;
+use std::ops::Deref;
 
 /*
     Lambda call explanation:
@@ -36,10 +37,134 @@ use std::mem::take;
     11.   result = 11
 */
 
+/*
+
+ []         (def a 10 b (+ a 20))
+
+ [def]      (a 10 b (+ a 20))
+
+ [def a]    (10 b (+ a 20))
+
+ [def a 10] (b (+ a 20))
+
+ [def b]    ((+ a 20))
+
+ [def b]    ()
+ []         (+ a 20)
+
+ [def b]    ()
+ [+]        (a 20)
+
+ [def b]    ()
+ [+ a]      (20)
+
+ [def b]    ()
+ [+ a 20]   ()
+
+ [def b 30] ()
+
+*/
+
 struct StackEntry {
     input: List<Expression>,
     output: List<Expression>,
     env: Env,
+}
+
+type CallStack = List<StackEntry>;
+
+fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
+    let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
+    let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
+
+    input_is_def || output_is_def
+}
+
+fn iamlisp_eval_variables_definition(
+    stack_entry: &mut StackEntry,
+    stack: &mut CallStack,
+) -> anyhow::Result<()> {
+    let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
+
+    match output_vec.as_slice() {
+        &[] => match stack_entry.input.pop() {
+            Some(Expression::Symbol("def")) => {
+                stack_entry.output.push(Expression::Symbol("def"));
+            }
+            _ => {
+                bail!(
+                    "Unexpected variable definition input state: {}",
+                    stack_entry.input
+                );
+            }
+        },
+        &[Expression::Symbol("def"), Expression::Symbol(name), value] => {
+            stack_entry.env.set(name, value.clone());
+            stack_entry.output = list![Expression::Symbol("def")];
+        }
+        _ => bail!(
+            "Unexpected variable definition output state: {}",
+            stack_entry.output
+        ),
+    }
+
+    match (stack_entry.input.pop(), stack_entry.input.pop()) {
+        (Some(Expression::Symbol(name)), Some(expr)) => {
+            stack_entry.output.push(Expression::Symbol(name));
+
+            iamlisp_eval_expression(&expr, stack_entry, stack)?;
+        }
+        _ => (),
+    }
+
+    Ok(())
+}
+
+fn iamlisp_eval_expression(
+    expression: &Expression,
+    current_stack_entry: &mut StackEntry,
+    stack: &mut CallStack,
+) -> anyhow::Result<()> {
+    match expression {
+        Expression::List(list) => {
+            stack.push_top(StackEntry {
+                env: current_stack_entry.env.clone(),
+                input: current_stack_entry.input.clone(),
+                output: current_stack_entry.output.clone(),
+            });
+
+            stack.push_top(StackEntry {
+                env: current_stack_entry.env.clone(),
+                input: *list.clone(),
+                output: list![],
+            });
+        }
+        Expression::Value(value) => {
+            current_stack_entry.output.push(value.clone().into());
+
+            stack.push_top(StackEntry {
+                env: current_stack_entry.env.clone(),
+                input: current_stack_entry.input.clone(),
+                output: current_stack_entry.output.clone(),
+            });
+        }
+        Expression::Symbol(name) => {
+            current_stack_entry.output.push(
+                current_stack_entry
+                    .env
+                    .get(name)
+                    .unwrap_or_else(move || Expression::Symbol(name)),
+            );
+
+            stack.push_top(StackEntry {
+                env: current_stack_entry.env.clone(),
+                input: current_stack_entry.input.clone(),
+                output: current_stack_entry.output.clone(),
+            });
+        }
+    }
+
+    Ok(())
 }
 
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
@@ -55,50 +180,12 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
     loop {
         match stack.pop() {
             Some(mut stack_entry) => {
-                let output = stack_entry.output.iter().collect::<Vec<_>>();
-
-                if let &[Expression::Symbol("def"), Expression::Symbol(name), value] =
-                    output.as_slice()
-                {
-                    stack_entry.env.set(name, value.clone());
-
-                    stack_entry.output = match stack_entry.input.is_empty() {
-                        true => list![Expression::Symbol("begin"), Value::Nil.into()],
-                        false => list![],
-                    }
+                if iamlisp_is_variables_definition(&mut stack_entry) {
+                    iamlisp_eval_variables_definition(&mut stack_entry, &mut stack)?;
+                    continue;
                 }
 
                 match stack_entry.input.pop() {
-                    Some(Expression::Symbol("def")) if stack_entry.output.is_empty() => {
-                        let var_name = match stack_entry.input.pop() {
-                            Some(Expression::Symbol(name)) => name,
-                            Some(t) => {
-                                bail!("Syntax error: unexpected token in variable name: {}", t)
-                            }
-                            None => bail!("Syntax error: variable should have name"),
-                        };
-                        let var_value = match stack_entry.input.pop() {
-                            Some(exp) => exp,
-                            None => bail!("Syntax error: variable should have value"),
-                        };
-                        let var_env = stack_entry.env.clone();
-
-                        stack_entry.output.push(Expression::Symbol("def"));
-                        stack_entry.output.push(Expression::Symbol(var_name));
-
-                        // If input still have remaining definitions, return "def" back into input.
-                        if !stack_entry.input.is_empty() {
-                            stack_entry.input.push_top(Expression::Symbol("def"));
-                        }
-
-                        stack.push_top(stack_entry);
-                        stack.push_top(StackEntry {
-                            input: list![Expression::Symbol("begin"), var_value],
-                            output: list![],
-                            env: var_env,
-                        });
-                        continue;
-                    }
                     Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
                         let lambda_args = match stack_entry.input.head() {
                             Some(Expression::List(args)) => List::clone(&args),
