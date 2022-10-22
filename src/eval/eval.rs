@@ -124,6 +124,41 @@ fn iamlisp_eval_variables_definition(
     Ok(())
 }
 
+fn iamlisp_is_lambda_definition(stack_entry: &StackEntry) -> bool {
+    matches!(stack_entry.input.head(), Some(Expression::Symbol("lambda")))
+}
+
+fn iamlisp_eval_lambda_definition(
+    stack_entry: &mut StackEntry,
+    stack: &mut CallStack,
+    return_value: &mut Expression,
+) -> anyhow::Result<()> {
+    match stack_entry.input.pop() {
+        Some(Expression::Symbol("lambda")) => (),
+        _ => {
+            bail!("Invalid lambda expression");
+        }
+    };
+
+    let lambda_args = match stack_entry.input.pop() {
+        Some(Expression::List(lambda_args)) => lambda_args,
+        _ => {
+            bail!("Invalid lambda arguments");
+        }
+    };
+
+    let lambda = Value::Lambda {
+        env: stack_entry.env.clone(),
+        args: lambda_args,
+        body: Box::from(stack_entry.input.clone()),
+    }
+    .into();
+
+    iamlisp_return_result(lambda, stack, return_value)?;
+
+    Ok(())
+}
+
 fn iamlisp_eval_expression(
     expression: &Expression,
     current_stack_entry: &mut StackEntry,
@@ -171,6 +206,20 @@ fn iamlisp_eval_expression(
     Ok(())
 }
 
+fn iamlisp_return_result(
+    result: Expression,
+    call_stack: &mut CallStack,
+    return_value: &mut Expression,
+) -> anyhow::Result<()> {
+    if let Some(StackEntry { output, .. }) = call_stack.head_mut() {
+        output.push(result);
+    } else {
+        *return_value = result;
+    }
+
+    Ok(())
+}
+
 pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
         input: exp,
@@ -189,30 +238,16 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     continue;
                 }
 
-                match stack_entry.input.pop() {
-                    Some(Expression::Symbol("lambda")) if stack_entry.output.is_empty() => {
-                        let lambda_args = match stack_entry.input.head() {
-                            Some(Expression::List(args)) => List::clone(&args),
-                            Some(ex) => {
-                                bail!("Syntax error: unexpected token in lambda arguments: {}", ex);
-                            }
-                            None => {
-                                bail!("Syntax error: lambda does not have arguments token");
-                            }
-                        };
-                        let lambda_body = List::clone(stack_entry.input.tail());
+                if iamlisp_is_lambda_definition(&mut stack_entry) {
+                    iamlisp_eval_lambda_definition(
+                        &mut stack_entry,
+                        &mut stack,
+                        &mut last_return_value,
+                    )?;
+                    continue;
+                }
 
-                        stack_entry.input = List::new();
-                        stack_entry.output.push(Expression::Symbol("quote"));
-                        stack_entry.output.push(
-                            Value::Lambda {
-                                args: Box::from(lambda_args),
-                                body: Box::from(lambda_body),
-                                env: stack_entry.env.clone(),
-                            }
-                            .into(),
-                        );
-                    }
+                match stack_entry.input.pop() {
                     Some(Expression::Symbol("macro")) if stack_entry.output.is_empty() => {
                         let macro_args = match stack_entry.input.head() {
                             Some(Expression::List(args)) => List::clone(&args),
