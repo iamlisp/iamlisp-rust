@@ -159,6 +159,40 @@ fn iamlisp_eval_lambda_definition(
     Ok(())
 }
 
+fn iamlisp_is_macro_definition(stack_entry: &StackEntry) -> bool {
+    matches!(stack_entry.input.head(), Some(Expression::Symbol("macro")))
+}
+
+fn iamlisp_eval_macro_definition(
+    stack_entry: &mut StackEntry,
+    stack: &mut CallStack,
+    return_value: &mut Expression,
+) -> anyhow::Result<()> {
+    match stack_entry.input.pop() {
+        Some(Expression::Symbol("macro")) => (),
+        _ => {
+            bail!("Invalid macro expression");
+        }
+    };
+
+    let lambda_args = match stack_entry.input.pop() {
+        Some(Expression::List(lambda_args)) => lambda_args,
+        _ => {
+            bail!("Invalid macro arguments");
+        }
+    };
+
+    let r#macro = Value::Macro {
+        args: lambda_args,
+        body: Box::from(stack_entry.input.clone()),
+    }
+    .into();
+
+    iamlisp_return_result(r#macro, stack, return_value)?;
+
+    Ok(())
+}
+
 fn iamlisp_eval_expression(
     expression: &Expression,
     current_stack_entry: &mut StackEntry,
@@ -247,29 +281,16 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     continue;
                 }
 
-                match stack_entry.input.pop() {
-                    Some(Expression::Symbol("macro")) if stack_entry.output.is_empty() => {
-                        let macro_args = match stack_entry.input.head() {
-                            Some(Expression::List(args)) => List::clone(&args),
-                            Some(ex) => {
-                                bail!("Syntax error: unexpected token in macro arguments: {}", ex);
-                            }
-                            None => {
-                                bail!("Syntax error: macro does not have arguments token");
-                            }
-                        };
-                        let macro_body = List::clone(stack_entry.input.tail());
+                if iamlisp_is_macro_definition(&mut stack_entry) {
+                    iamlisp_eval_macro_definition(
+                        &mut stack_entry,
+                        &mut stack,
+                        &mut last_return_value,
+                    )?;
+                    continue;
+                }
 
-                        stack_entry.input = List::new();
-                        stack_entry.output.push(Expression::Symbol("quote"));
-                        stack_entry.output.push(
-                            Value::Macro {
-                                args: Box::from(macro_args),
-                                body: Box::from(macro_body),
-                            }
-                            .into(),
-                        );
-                    }
+                match stack_entry.input.pop() {
                     Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
                         stack_entry.output.push(Expression::Symbol("quote"));
                         let quoted_expression = match stack_entry.input.pop() {
