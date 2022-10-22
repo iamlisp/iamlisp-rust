@@ -37,34 +37,6 @@ use std::ops::Deref;
     11.   result = 11
 */
 
-/*
-
- []         (def a 10 b (+ a 20))
-
- [def]      (a 10 b (+ a 20))
-
- [def a]    (10 b (+ a 20))
-
- [def a 10] (b (+ a 20))
-
- [def b]    ((+ a 20))
-
- [def b]    ()
- []         (+ a 20)
-
- [def b]    ()
- [+]        (a 20)
-
- [def b]    ()
- [+ a]      (20)
-
- [def b]    ()
- [+ a 20]   ()
-
- [def b 30] ()
-
-*/
-
 struct StackEntry {
     input: List<Expression>,
     output: List<Expression>,
@@ -72,6 +44,38 @@ struct StackEntry {
 }
 
 type CallStack = List<StackEntry>;
+
+/*
+
+ Variables definition steps:
+
+ []         (def a 10 b (+ a 20))           {}
+
+ [def]      (a 10 b (+ a 20))               {}
+
+ [def a]    (10 b (+ a 20))                 {}
+
+ [def a 10] (b (+ a 20))                    {}
+
+ [def b]    ((+ a 20))                      {a: 10}
+
+ []         (+ a 20)                        {a: 10}
+ [def b]    ()
+
+ [+]        (a 20)                          {a: 10}
+ [def b]    ()
+
+ [+ a]      (20)                            {a: 10}
+ [def b]    ()
+
+ [+ a 20]   ()                              {a: 10}
+ [def b]    ()
+
+ [def b 30] ()                              {a: 10}
+
+ []         ()                              {a: 10, b: 30}
+
+*/
 
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
     let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
