@@ -2,7 +2,7 @@ use crate::data::List;
 use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
 use crate::list;
-use anyhow::bail;
+use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
 
@@ -240,6 +240,86 @@ fn iamlisp_eval_expression(
     Ok(())
 }
 
+fn iamlisp_call_function(
+    r#fn: &Expression,
+    args_values: &List<Expression>,
+    current_stack_entry: &mut StackEntry,
+    call_stack: &mut CallStack,
+    return_value: &mut Expression,
+) -> anyhow::Result<()> {
+    let env = &current_stack_entry.env;
+
+    let result = match r#fn {
+        // Math expressions
+        Expression::Symbol("+") => Sum::apply(&args_values, env)?,
+        Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
+        Expression::Symbol("-") => Subtract::apply(&args_values, env)?,
+        Expression::Symbol("/") => Divide::apply(&args_values, env)?,
+        Expression::Symbol("list") => List::clone(&args_values).into(),
+
+        // Special forms
+        Expression::Symbol("quote") => match args_values.head() {
+            Some(expression) => expression.clone(),
+            None => Value::Nil.into(),
+        },
+        Expression::Symbol("begin") => match args_values.iter().last() {
+            Some(expression) => expression.clone(),
+            None => Value::Nil.into(),
+        },
+
+        Expression::Value(Value::Lambda {
+            args: args_names,
+            env,
+            body,
+        }) => {
+            let env = env.child();
+            let mut values = args_values.clone();
+            let mut body = *body.clone();
+
+            for arg_name in args_names.iter() {
+                match arg_name {
+                    Expression::Symbol(name) => {
+                        let value = match values.pop() {
+                            Some(value) => value,
+                            None => {
+                                bail!(
+                                    "Lambda expects {} arguments but were provided - {}",
+                                    args_names.len(),
+                                    args_values.len()
+                                )
+                            }
+                        };
+
+                        env.set(*name, value);
+                    }
+                    _ => {
+                        bail!("Unexpected symbol in lambda arguments");
+                    }
+                }
+            }
+
+            body.push_top(Expression::Symbol("begin"));
+
+            call_stack.push_top(StackEntry {
+                env,
+                input: body,
+                output: list![],
+            });
+
+            return Ok(());
+        }
+        ex => {
+            bail!(
+                "Expression is not callable type: {} (args: {})",
+                ex,
+                args_values
+            );
+        }
+    };
+
+    iamlisp_return_result(result, call_stack, return_value)
+}
+
 fn iamlisp_return_result(
     result: Expression,
     call_stack: &mut CallStack,
@@ -290,6 +370,29 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     continue;
                 }
 
+                if stack_entry.input.is_empty() {
+                    match stack_entry.output.head().cloned() {
+                        Some(callable) => {
+                            iamlisp_call_function(
+                                &callable,
+                                &stack_entry.output.tail().clone(),
+                                &mut stack_entry,
+                                &mut stack,
+                                &mut last_return_value,
+                            )?;
+                        }
+                        None => {
+                            iamlisp_return_result(
+                                list![].into(),
+                                &mut stack,
+                                &mut last_return_value,
+                            )?;
+                        }
+                    }
+
+                    continue;
+                }
+
                 match stack_entry.input.pop() {
                     Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
                         stack_entry.output.push(Expression::Symbol("quote"));
@@ -322,111 +425,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                     Some(Expression::Value(value)) => {
                         stack_entry.output.push(value.into());
                     }
-                    None => {
-                        let result = match take(&mut stack_entry.output) {
-                            List::Normal {
-                                car: callable,
-                                cdr: args_values,
-                            } => {
-                                let env = &stack_entry.env;
-                                match callable {
-                                    // Math expressions
-                                    Expression::Symbol("+") => Sum::apply(&args_values, env)?,
-                                    Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
-                                    Expression::Symbol("-") => Subtract::apply(&args_values, env)?,
-                                    Expression::Symbol("/") => Divide::apply(&args_values, env)?,
-                                    Expression::Symbol("list") => List::clone(&args_values).into(),
-
-                                    // Special forms
-                                    Expression::Symbol("quote") => match args_values.head() {
-                                        Some(expression) => expression.clone(),
-                                        None => Value::Nil.into(),
-                                    },
-                                    Expression::Symbol("begin") => {
-                                        match List::clone(&args_values).reverse().head() {
-                                            Some(expression) => expression.clone(),
-                                            None => Value::Nil.into(),
-                                        }
-                                    }
-                                    Expression::Symbol("def") => {
-                                        let mut items = List::clone(&args_values);
-
-                                        while !items.is_empty() {
-                                            let name = match items.pop() {
-                                                Some(Expression::Symbol(name)) => name,
-                                                _ => bail!("Syntax error: unexpected token at variable name position"),
-                                            };
-                                            let value = match items.pop() {
-                                                Some(value) => value,
-                                                None => bail!(
-                                                    "Syntax error: variable should have value"
-                                                ),
-                                            };
-                                            stack_entry.env.set(name, value);
-                                        }
-
-                                        Value::Nil.into()
-                                    }
-
-                                    Expression::Value(Value::Lambda {
-                                        args: args_names,
-                                        body,
-                                        env,
-                                    }) => {
-                                        let new_env = env.child();
-
-                                        let mut values = List::clone(&args_values);
-
-                                        let mut names_iter = List::clone(&args_names).into_iter();
-                                        while let Some(name_expression) = names_iter.next() {
-                                            let name = match name_expression {
-                                                Expression::Symbol(name) => name,
-                                                exp => bail!(
-                                                    "Syntax error: unexpected argument name: {}",
-                                                    exp
-                                                ),
-                                            };
-                                            let value = match values.pop() {
-                                                Some(value) => value,
-                                                None => bail!("Runtime error: lambda expects {} arguments, but called with {}", args_names.len(), args_values.len())
-                                            };
-                                            new_env.set(name, value);
-                                        }
-
-                                        stack.push_top(StackEntry {
-                                            input: List::cons(Expression::Symbol("begin"), *body),
-                                            output: List::new(),
-                                            env: new_env,
-                                        });
-
-                                        continue;
-                                    }
-                                    Expression::Value(Value::Macro { args, body }) => {
-                                        todo!()
-                                    }
-
-                                    // exception
-                                    other => bail!(
-                                        "Expression is not callable type: {} (args: {})",
-                                        other,
-                                        args_values
-                                    ),
-                                }
-                            }
-                            List::Empty => list![].into(),
-                        };
-
-                        if let Some(StackEntry {
-                            output: prev_output,
-                            ..
-                        }) = stack.head_mut()
-                        {
-                            prev_output.push(result);
-                        } else {
-                            last_return_value = result;
-                        }
-                        continue;
-                    }
+                    None => (),
                 }
 
                 stack.push_top(stack_entry);
