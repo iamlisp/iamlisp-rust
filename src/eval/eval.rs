@@ -334,7 +334,7 @@ fn iamlisp_return_result(
     Ok(())
 }
 
-pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
+pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
         input: exp,
         output: list![],
@@ -411,7 +411,7 @@ mod tests {
         let env = Env::new();
         let exp = list![];
 
-        let result = eval_iterative(exp, env).unwrap();
+        let result = iamlisp_eval(exp, env).unwrap();
 
         assert_eq!(Expression::List(Box::new(list![])), result)
     }
@@ -430,7 +430,7 @@ mod tests {
             Value::Int64(10).into()
         ];
 
-        let result = eval_iterative(exp2, env).unwrap();
+        let result = iamlisp_eval(exp2, env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(15)), result)
     }
@@ -449,7 +449,7 @@ mod tests {
             .into()
         ];
 
-        let result = eval_iterative(expression, env.clone()).unwrap();
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
 
         assert_eq!(
             Expression::Value(Value::Lambda {
@@ -481,7 +481,7 @@ mod tests {
         ];
         let expression = list![lambda.into(), Value::Int64(10).into()];
 
-        let result = eval_iterative(expression, env.clone()).unwrap();
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(20)), result);
     }
@@ -500,7 +500,7 @@ mod tests {
             .into()
         ];
 
-        let result = eval_iterative(expression, env.clone()).unwrap();
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
 
         assert_eq!(
             Expression::Value(Value::Macro {
@@ -537,7 +537,7 @@ mod tests {
             .into()
         ];
 
-        let result = eval_iterative(expression, env.clone()).unwrap();
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
 
         assert_eq!(Expression::Value(Value::Nil), result);
 
