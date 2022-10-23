@@ -241,7 +241,7 @@ fn iamlisp_eval_expression(
 }
 
 fn iamlisp_call_function(
-    r#fn: &Expression,
+    func: &Expression,
     args_values: &List<Expression>,
     current_stack_entry: &mut StackEntry,
     call_stack: &mut CallStack,
@@ -249,7 +249,7 @@ fn iamlisp_call_function(
 ) -> anyhow::Result<()> {
     let env = &current_stack_entry.env;
 
-    let result = match r#fn {
+    let result = match func {
         // Math expressions
         Expression::Symbol("+") => Sum::apply(&args_values, env)?,
         Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
@@ -273,10 +273,10 @@ fn iamlisp_call_function(
             body,
         }) => {
             let env = env.child();
-            let mut values = args_values.clone();
-            let mut body = *body.clone();
+            let mut values = List::clone(&args_values);
+            let mut body = List::clone(&body);
 
-            for arg_name in args_names.iter() {
+            for arg_name in args_names.clone().into_iter() {
                 match arg_name {
                     Expression::Symbol(name) => {
                         let value = match values.pop() {
@@ -290,7 +290,7 @@ fn iamlisp_call_function(
                             }
                         };
 
-                        env.set(*name, value);
+                        env.set(name, value);
                     }
                     _ => {
                         bail!("Unexpected symbol in lambda arguments");
@@ -486,8 +486,8 @@ mod tests {
 
         assert_eq!(
             Expression::Value(Value::Lambda {
-                args: Box::from(list![Expression::Symbol("a")]),
-                body: Box::from(list![list![
+                args: Box::new(list![Expression::Symbol("a")]),
+                body: Box::new(list![list![
                     Expression::Symbol("+"),
                     Expression::Symbol("a"),
                     Value::Int64(3).into()
