@@ -377,10 +377,10 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                     Some(expression) => {
                         iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)?;
                     }
-                    None => match stack_entry.output.head().cloned() {
+                    None => match stack_entry.output.head() {
                         Some(callable) => {
                             iamlisp_call_function(
-                                &callable,
+                                &callable.clone(),
                                 &stack_entry.output.tail().clone(),
                                 &mut stack_entry,
                                 &mut stack,
