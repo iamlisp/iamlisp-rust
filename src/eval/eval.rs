@@ -349,6 +349,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
             Some(mut stack_entry) => {
                 if iamlisp_is_variables_definition(&mut stack_entry) {
                     iamlisp_eval_variables_definition(&mut stack_entry, &mut stack)?;
+
                     continue;
                 }
 
@@ -358,6 +359,7 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         &mut stack,
                         &mut last_return_value,
                     )?;
+
                     continue;
                 }
 
@@ -367,11 +369,15 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                         &mut stack,
                         &mut last_return_value,
                     )?;
+
                     continue;
                 }
 
-                if stack_entry.input.is_empty() {
-                    match stack_entry.output.head().cloned() {
+                match stack_entry.input.pop() {
+                    Some(expression) => {
+                        iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)?;
+                    }
+                    None => match stack_entry.output.head().cloned() {
                         Some(callable) => {
                             iamlisp_call_function(
                                 &callable,
@@ -388,47 +394,8 @@ pub(crate) fn eval_iterative(exp: List<Expression>, env: Env) -> anyhow::Result<
                                 &mut last_return_value,
                             )?;
                         }
-                    }
-
-                    continue;
+                    },
                 }
-
-                match stack_entry.input.pop() {
-                    Some(Expression::Symbol("quote")) if stack_entry.output.is_empty() => {
-                        stack_entry.output.push(Expression::Symbol("quote"));
-                        let quoted_expression = match stack_entry.input.pop() {
-                            Some(expression) => expression,
-                            None => Value::Nil.into(),
-                        };
-                        // Ignore other than first argument
-                        stack_entry.input = List::new();
-                        stack_entry.output.push(quoted_expression);
-                    }
-
-                    Some(Expression::Symbol(name)) => {
-                        stack_entry.output.push(
-                            stack_entry
-                                .env
-                                .get(name)
-                                .unwrap_or_else(move || Expression::Symbol(name)),
-                        );
-                    }
-                    Some(Expression::List(list)) => {
-                        let new_env = stack_entry.env.clone();
-                        stack.push_top(stack_entry).push_top(StackEntry {
-                            input: *list,
-                            output: List::new(),
-                            env: new_env,
-                        });
-                        continue;
-                    }
-                    Some(Expression::Value(value)) => {
-                        stack_entry.output.push(value.into());
-                    }
-                    None => (),
-                }
-
-                stack.push_top(stack_entry);
             }
             None => return Ok(last_return_value),
         }
