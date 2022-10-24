@@ -57,7 +57,7 @@ fn iamlisp_eval_variables_definition(
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
     match output_vec.as_slice() {
-        &[] => match stack_entry.input.pop() {
+        &[] => match stack_entry.input.shift() {
             Some(Expression::Symbol("def")) => {
                 stack_entry.output.push(Expression::Symbol("def"));
             }
@@ -78,7 +78,7 @@ fn iamlisp_eval_variables_definition(
         ),
     }
 
-    match (stack_entry.input.pop(), stack_entry.input.pop()) {
+    match (stack_entry.input.shift(), stack_entry.input.shift()) {
         (Some(Expression::Symbol(name)), Some(expr)) => {
             stack_entry.output.push(Expression::Symbol(name));
 
@@ -93,19 +93,19 @@ fn iamlisp_eval_variables_definition(
 /*
  Cond expression:
 
- []             (cond (> 1 2) (begin 10) (begin 20))            {}
+ []             (cond (> 1 2) 10 20)            {}
 
- [cond]         ((> 1 2) (begin 10) (begin 20))                 {}
+ [cond]         ((> 1 2) 10 20)                 {}
 
- []             (> 1 2)                                         {}
- [cond]         ((begin 10) (begin 20))
+ []             (> 1 2)                         {}
+ [cond]         (10 20)
 
- [> 1 2]        ()                                              {}
- [cond]         ((begin 10) (begin 20))
+ [> 1 2]        ()                              {}
+ [cond]         (10 20)
 
- [cond false]   ((begin 10) (begin 20))                         {}
+ [cond false]   (10 20)                         {}
 
- []             (begin 20)                                      {}
+ []             (begin 20)                      {}
 */
 fn iamlisp_is_cond_expression(stack_entry: &StackEntry) -> bool {
     let input_is_cond = matches!(stack_entry.input.head(), Some(cond_symbol!()));
@@ -121,18 +121,15 @@ fn iamlisp_eval_cond_expression(
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
     match output_vec.as_slice() {
-        &[] => match stack_entry.input.pop() {
+        &[] => match stack_entry.input.shift() {
             Some(cond_symbol!()) => {
                 stack_entry.output.push(cond_symbol!());
 
-                let cond_expr = match stack_entry.input.pop() {
-                    Some(expr) => expr,
-                    None => {
-                        bail!("Condition expression should be defined");
-                    }
-                };
-
-                iamlisp_eval_expression(&cond_expr, stack_entry, stack)?;
+                stack.push_top(StackEntry {
+                    env: stack_entry.env.clone(),
+                    input: stack_entry.input.clone(),
+                    output: stack_entry.output.clone(),
+                });
             }
             _ => {
                 bail!(
@@ -141,16 +138,45 @@ fn iamlisp_eval_cond_expression(
                 );
             }
         },
-        &[COND_SYMBOL, Expression::Value(Value::Bool(bool))] => {
-            let true_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
-            let false_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
+        &[cond_symbol!()] if stack_entry.input.len() == 1 => match stack_entry.input.shift() {
+            Some(default_expr) => {
+                stack.push_top(StackEntry {
+                    env: stack_entry.env.clone(),
+                    input: list![Expression::Symbol("begin"), default_expr],
+                    output: list![],
+                });
+            }
+            _ => {
+                bail!("Test expression is expected in cond construct");
+            }
+        },
+        &[cond_symbol!()] => match stack_entry.input.shift() {
+            Some(test_expr) => {
+                iamlisp_eval_expression(&test_expr, stack_entry, stack)?;
+            }
+            _ => {
+                bail!("Test expression is expected in cond construct");
+            }
+        },
+        &[cond_symbol!(), Expression::Value(Value::Bool(false))] => {
+            let _ = stack_entry.input.shift();
+            let _ = stack_entry.output.pop();
 
             stack.push_top(StackEntry {
                 env: stack_entry.env.clone(),
-                input: list![
-                    Expression::Symbol("begin"),
-                    if *bool { true_expr } else { false_expr }
-                ],
+                input: stack_entry.input.clone(),
+                output: stack_entry.output.clone(),
+            });
+        }
+        &[cond_symbol!(), Expression::Value(Value::Bool(true))] => {
+            let true_expr = stack_entry
+                .input
+                .shift()
+                .unwrap_or_else(|| Value::Nil.into());
+
+            stack.push_top(StackEntry {
+                env: stack_entry.env.clone(),
+                input: list![Expression::Symbol("begin"), true_expr],
                 output: list![],
             });
         }
@@ -172,14 +198,14 @@ fn iamlisp_eval_lambda_definition(
     stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    match stack_entry.input.pop() {
+    match stack_entry.input.shift() {
         Some(Expression::Symbol("lambda")) => (),
         _ => {
             bail!("Invalid lambda expression");
         }
     };
 
-    let lambda_args = match stack_entry.input.pop() {
+    let lambda_args = match stack_entry.input.shift() {
         Some(Expression::List(lambda_args)) => lambda_args,
         _ => {
             bail!("Invalid lambda arguments");
@@ -207,14 +233,14 @@ fn iamlisp_eval_macro_definition(
     stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    match stack_entry.input.pop() {
+    match stack_entry.input.shift() {
         Some(Expression::Symbol("macro")) => (),
         _ => {
             bail!("Invalid macro expression");
         }
     };
 
-    let lambda_args = match stack_entry.input.pop() {
+    let lambda_args = match stack_entry.input.shift() {
         Some(Expression::List(lambda_args)) => lambda_args,
         _ => {
             bail!("Invalid macro arguments");
@@ -323,7 +349,7 @@ fn iamlisp_call_function(
             for arg_name in args_names.clone().into_iter() {
                 match arg_name {
                     Expression::Symbol(name) => {
-                        let value = match values.pop() {
+                        let value = match values.shift() {
                             Some(value) => value,
                             None => {
                                 bail!(
@@ -389,7 +415,7 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
     let mut last_return_value = Value::Nil.into();
 
     loop {
-        match stack.pop() {
+        match stack.shift() {
             Some(mut stack_entry) => {
                 if iamlisp_is_variables_definition(&mut stack_entry) {
                     iamlisp_eval_variables_definition(&mut stack_entry, &mut stack)?;
@@ -423,7 +449,7 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                     continue;
                 }
 
-                match stack_entry.input.pop() {
+                match stack_entry.input.shift() {
                     Some(expression) => {
                         iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)?;
                     }
