@@ -54,6 +54,7 @@ pub(crate) enum Value {
     Int64(i64),
     Float64(f64),
     String(String),
+    Bool(bool),
     Nil,
     Lambda {
         env: Env,
@@ -80,6 +81,7 @@ impl Display for Expression {
             Expression::Value(Value::Int64(i)) => format!("{}", i),
             Expression::Value(Value::Float64(f)) => format!("{}", f),
             Expression::Value(Value::String(s)) => format!("{}", s),
+            Expression::Value(Value::Bool(b)) => format!("{}", b),
             Expression::Value(Value::Nil) => "Nil".to_string(),
             Expression::Symbol(s) => format!("{}", s),
             Expression::Value(Value::Lambda { args, body, env: _ }) => {

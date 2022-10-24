@@ -14,7 +14,6 @@ struct StackEntry {
 
 type CallStack = List<StackEntry>;
 
-
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
     let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
     let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
@@ -236,7 +235,7 @@ fn iamlisp_call_function(
 
         /*
           Lambda call:
-          
+
           ((lambda (a) (+ a 10)) 20) {}  => (begin (+ a 10)) {a: 20}  =>  (+ 20 10) {a: 20}  =>  30
         */
         Expression::Value(Value::Lambda {
@@ -515,5 +514,69 @@ mod tests {
 
         assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap());
         assert_eq!(Expression::Value(Value::Int64(6)), env.get("b").unwrap());
+    }
+
+    #[test]
+    fn test_cond_expression_basic() {
+        let env = Env::new();
+
+        let if_true_exp = list![Expression::Symbol("begin"), Value::Int64(10).into()];
+        let if_false_exp = list![Expression::Symbol("begin"), Value::Int64(20).into()];
+
+        {
+            let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(true).into()];
+
+            let expression: List<_> = list![
+                Expression::Symbol("cond"),
+                predicate_exp.into(),
+                if_true_exp.clone().into(),
+                if_false_exp.clone().into()
+            ];
+
+            let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+            assert_eq!(Expression::Value(Value::Int64(10)), result);
+        };
+
+        {
+            let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(false).into()];
+
+            let expression: List<_> = list![
+                Expression::Symbol("cond"),
+                predicate_exp.into(),
+                if_true_exp.into(),
+                if_false_exp.into()
+            ];
+
+            let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+            assert_eq!(Expression::Value(Value::Int64(20)), result);
+        };
+    }
+
+    #[test]
+    fn test_cond_expression_opposite_not_evaluated() {
+        let env = Env::new();
+        let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(true).into()];
+
+        let if_true_exp = list![Expression::Symbol("begin"), Value::Int64(10).into()];
+        let if_false_exp = list![
+            Expression::Symbol("def"),
+            Expression::Symbol("a"),
+            Value::Int64(20).into()
+        ];
+
+        let expression: List<_> = list![
+            Expression::Symbol("cond"),
+            predicate_exp.into(),
+            if_true_exp.into(),
+            if_false_exp.into()
+        ];
+
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+        assert_eq!(Expression::Value(Value::Int64(10)), result);
+
+        assert_eq!(None, env.get("a"));
     }
 }
