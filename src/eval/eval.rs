@@ -6,37 +6,6 @@ use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
 
-/*
-    Lambda call explanation:
-
-     1.   []                                ((lambda (a) (+ a 1)) 10)
-
-     2.   []                                (10)
-          []                                (lambda (a) (+ a 1))
-
-     3.   []                                (10)
-          [quote (lambda (a) (+ a 1))]      ()
-
-     4.   [(lambda (a) (+ a 1))]            (10)
-
-     5.   [(lambda (a) (+ a 1)) 10]         ()
-
-     6.   []                                (begin (+ 10 1))
-
-     7.   [begin]                           ()
-          []                                (+ 10 1)
-
-    ...
-
-     9.   [begin]                           ()
-          [+ 10 1]                          ()
-
-
-    10.   [begin 11]                           ()
-
-    11.   result = 11
-*/
-
 struct StackEntry {
     input: List<Expression>,
     output: List<Expression>,
@@ -45,9 +14,16 @@ struct StackEntry {
 
 type CallStack = List<StackEntry>;
 
-/*
 
- Variables definition steps:
+fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
+    let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
+    let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
+
+    input_is_def || output_is_def
+}
+
+/*
+ Variables definition:
 
  []         (def a 10 b (+ a 20))           {}
 
@@ -74,16 +50,7 @@ type CallStack = List<StackEntry>;
  [def b 30] ()                              {a: 10}
 
  []         ()                              {a: 10, b: 30}
-
 */
-
-fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
-    let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
-    let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
-
-    input_is_def || output_is_def
-}
-
 fn iamlisp_eval_variables_definition(
     stack_entry: &mut StackEntry,
     stack: &mut CallStack,
