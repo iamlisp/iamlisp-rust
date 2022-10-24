@@ -90,6 +90,80 @@ fn iamlisp_eval_variables_definition(
     Ok(())
 }
 
+/*
+ Cond expression:
+
+ []             (cond (> 1 2) (begin 10) (begin 20))            {}
+
+ [cond]         ((> 1 2) (begin 10) (begin 20))                 {}
+
+ []             (> 1 2)                                         {}
+ [cond]         ((begin 10) (begin 20))
+
+ [> 1 2]        ()                                              {}
+ [cond]         ((begin 10) (begin 20))
+
+ [cond false]   ((begin 10) (begin 20))                         {}
+
+ []             (begin 20)                                      {}
+*/
+fn iamlisp_is_cond_expression(stack_entry: &StackEntry) -> bool {
+    let input_is_cond = matches!(stack_entry.input.head(), Some(Expression::Symbol("cond")));
+    let output_is_cond = matches!(stack_entry.output.head(), Some(Expression::Symbol("cond")));
+
+    input_is_cond || output_is_cond
+}
+
+fn iamlisp_eval_cond_expression(
+    stack_entry: &mut StackEntry,
+    stack: &mut CallStack,
+    return_value: &mut Expression,
+) -> anyhow::Result<()> {
+    let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
+
+    match output_vec.as_slice() {
+        &[] => match stack_entry.input.pop() {
+            Some(Expression::Symbol("cond")) => {
+                stack_entry.output.push(Expression::Symbol("cond"));
+
+                let cond_expr = match stack_entry.input.pop() {
+                    Some(expr) => expr,
+                    None => {
+                        bail!("Condition expression should be defined");
+                    }
+                };
+
+                iamlisp_eval_expression(&cond_expr, stack_entry, stack)?;
+            }
+            _ => {
+                bail!(
+                    "Unexpected variable definition input state: {}",
+                    stack_entry.input
+                );
+            }
+        },
+        &[Expression::Symbol("cond"), Expression::Value(Value::Bool(bool))] => {
+            let true_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
+            let false_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
+
+            iamlisp_eval_expression(
+                &if *bool { true_expr } else { false_expr },
+                stack_entry,
+                stack,
+            )?;
+        }
+        &[Expression::Symbol("cond"), Expression::Value(Value::Bool(bool)), result] => {
+            iamlisp_return_result(result.clone(), stack, return_value)?;
+        }
+        _ => bail!(
+            "Unexpected variable definition output state: {}",
+            stack_entry.output
+        ),
+    }
+
+    Ok(())
+}
+
 fn iamlisp_is_lambda_definition(stack_entry: &StackEntry) -> bool {
     matches!(stack_entry.input.head(), Some(Expression::Symbol("lambda")))
 }
@@ -320,6 +394,16 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
             Some(mut stack_entry) => {
                 if iamlisp_is_variables_definition(&mut stack_entry) {
                     iamlisp_eval_variables_definition(&mut stack_entry, &mut stack)?;
+
+                    continue;
+                }
+
+                if iamlisp_is_cond_expression(&mut stack_entry) {
+                    iamlisp_eval_cond_expression(
+                        &mut stack_entry,
+                        &mut stack,
+                        &mut last_return_value,
+                    )?;
 
                     continue;
                 }
