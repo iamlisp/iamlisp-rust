@@ -117,7 +117,6 @@ fn iamlisp_is_cond_expression(stack_entry: &StackEntry) -> bool {
 fn iamlisp_eval_cond_expression(
     stack_entry: &mut StackEntry,
     stack: &mut CallStack,
-    return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
@@ -146,14 +145,14 @@ fn iamlisp_eval_cond_expression(
             let true_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
             let false_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
 
-            iamlisp_eval_expression(
-                &if *bool { true_expr } else { false_expr },
-                stack_entry,
-                stack,
-            )?;
-        }
-        &[Expression::Symbol("cond"), Expression::Value(Value::Bool(bool)), result] => {
-            iamlisp_return_result(result.clone(), stack, return_value)?;
+            stack.push_top(StackEntry {
+                env: stack_entry.env.clone(),
+                input: list![
+                    Expression::Symbol("begin"),
+                    if *bool { true_expr } else { false_expr }
+                ],
+                output: list![],
+            });
         }
         _ => bail!(
             "Unexpected variable definition output state: {}",
@@ -171,7 +170,6 @@ fn iamlisp_is_lambda_definition(stack_entry: &StackEntry) -> bool {
 fn iamlisp_eval_lambda_definition(
     stack_entry: &mut StackEntry,
     stack: &mut CallStack,
-    return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     match stack_entry.input.pop() {
         Some(Expression::Symbol("lambda")) => (),
@@ -191,10 +189,13 @@ fn iamlisp_eval_lambda_definition(
         env: stack_entry.env.clone(),
         args: lambda_args,
         body: Box::from(stack_entry.input.clone()),
-    }
-    .into();
+    };
 
-    iamlisp_return_result(lambda, stack, return_value)?;
+    stack.push_top(StackEntry {
+        env: stack_entry.env.clone(),
+        input: list![Expression::Symbol("begin"), lambda.into()],
+        output: list![],
+    });
 
     Ok(())
 }
@@ -206,7 +207,6 @@ fn iamlisp_is_macro_definition(stack_entry: &StackEntry) -> bool {
 fn iamlisp_eval_macro_definition(
     stack_entry: &mut StackEntry,
     stack: &mut CallStack,
-    return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     match stack_entry.input.pop() {
         Some(Expression::Symbol("macro")) => (),
@@ -222,13 +222,16 @@ fn iamlisp_eval_macro_definition(
         }
     };
 
-    let r#macro = Value::Macro {
+    let macro_expr = Value::Macro {
         args: lambda_args,
         body: Box::from(stack_entry.input.clone()),
-    }
-    .into();
+    };
 
-    iamlisp_return_result(r#macro, stack, return_value)?;
+    stack.push_top(StackEntry {
+        env: stack_entry.env.clone(),
+        input: list![Expression::Symbol("begin"), macro_expr.into()],
+        output: list![],
+    });
 
     Ok(())
 }
@@ -399,58 +402,42 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                 }
 
                 if iamlisp_is_cond_expression(&mut stack_entry) {
-                    iamlisp_eval_cond_expression(
-                        &mut stack_entry,
-                        &mut stack,
-                        &mut last_return_value,
-                    )?;
+                    iamlisp_eval_cond_expression(&mut stack_entry, &mut stack)?;
 
                     continue;
                 }
 
                 if iamlisp_is_lambda_definition(&mut stack_entry) {
-                    iamlisp_eval_lambda_definition(
-                        &mut stack_entry,
-                        &mut stack,
-                        &mut last_return_value,
-                    )?;
+                    iamlisp_eval_lambda_definition(&mut stack_entry, &mut stack)?;
 
                     continue;
                 }
 
                 if iamlisp_is_macro_definition(&mut stack_entry) {
-                    iamlisp_eval_macro_definition(
-                        &mut stack_entry,
-                        &mut stack,
-                        &mut last_return_value,
-                    )?;
+                    iamlisp_eval_macro_definition(&mut stack_entry, &mut stack)?;
 
                     continue;
                 }
 
                 match stack_entry.input.pop() {
                     Some(expression) => {
-                        iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)?;
+                        iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)
                     }
                     None => match stack_entry.output.head().cloned() {
-                        Some(callable) => {
-                            iamlisp_call_function(
-                                &callable,
-                                &stack_entry.output.tail().clone(),
-                                &mut stack_entry,
-                                &mut stack,
-                                &mut last_return_value,
-                            )?;
-                        }
-                        None => {
-                            iamlisp_return_result(
-                                list![].into(),
-                                &mut stack,
-                                &mut last_return_value,
-                            )?;
-                        }
+                        Some(callable) => iamlisp_call_function(
+                            &callable,
+                            &stack_entry.output.tail().clone(),
+                            &mut stack_entry,
+                            &mut stack,
+                            &mut last_return_value,
+                        ),
+                        None => iamlisp_return_result(
+                            list![].into(),
+                            &mut stack,
+                            &mut last_return_value,
+                        ),
                     },
-                }
+                }?;
             }
             None => return Ok(last_return_value),
         }
