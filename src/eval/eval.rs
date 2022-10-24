@@ -1,7 +1,7 @@
 use crate::data::List;
 use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
-use crate::list;
+use crate::{cond_symbol, list};
 use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
@@ -108,8 +108,8 @@ fn iamlisp_eval_variables_definition(
  []             (begin 20)                                      {}
 */
 fn iamlisp_is_cond_expression(stack_entry: &StackEntry) -> bool {
-    let input_is_cond = matches!(stack_entry.input.head(), Some(Expression::Symbol("cond")));
-    let output_is_cond = matches!(stack_entry.output.head(), Some(Expression::Symbol("cond")));
+    let input_is_cond = matches!(stack_entry.input.head(), Some(cond_symbol!()));
+    let output_is_cond = matches!(stack_entry.output.head(), Some(cond_symbol!()));
 
     input_is_cond || output_is_cond
 }
@@ -117,14 +117,13 @@ fn iamlisp_is_cond_expression(stack_entry: &StackEntry) -> bool {
 fn iamlisp_eval_cond_expression(
     stack_entry: &mut StackEntry,
     stack: &mut CallStack,
-    return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
     match output_vec.as_slice() {
         &[] => match stack_entry.input.pop() {
-            Some(Expression::Symbol("cond")) => {
-                stack_entry.output.push(Expression::Symbol("cond"));
+            Some(cond_symbol!()) => {
+                stack_entry.output.push(cond_symbol!());
 
                 let cond_expr = match stack_entry.input.pop() {
                     Some(expr) => expr,
@@ -142,18 +141,18 @@ fn iamlisp_eval_cond_expression(
                 );
             }
         },
-        &[Expression::Symbol("cond"), Expression::Value(Value::Bool(bool))] => {
+        &[COND_SYMBOL, Expression::Value(Value::Bool(bool))] => {
             let true_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
             let false_expr = stack_entry.input.pop().unwrap_or_else(|| Value::Nil.into());
 
-            iamlisp_eval_expression(
-                &if *bool { true_expr } else { false_expr },
-                stack_entry,
-                stack,
-            )?;
-        }
-        &[Expression::Symbol("cond"), Expression::Value(Value::Bool(bool)), result] => {
-            iamlisp_return_result(result.clone(), stack, return_value)?;
+            stack.push_top(StackEntry {
+                env: stack_entry.env.clone(),
+                input: list![
+                    Expression::Symbol("begin"),
+                    if *bool { true_expr } else { false_expr }
+                ],
+                output: list![],
+            });
         }
         _ => bail!(
             "Unexpected variable definition output state: {}",
@@ -399,11 +398,7 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                 }
 
                 if iamlisp_is_cond_expression(&mut stack_entry) {
-                    iamlisp_eval_cond_expression(
-                        &mut stack_entry,
-                        &mut stack,
-                        &mut last_return_value,
-                    )?;
+                    iamlisp_eval_cond_expression(&mut stack_entry, &mut stack)?;
 
                     continue;
                 }
