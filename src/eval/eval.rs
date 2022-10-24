@@ -267,6 +267,11 @@ fn iamlisp_call_function(
             None => Value::Nil.into(),
         },
 
+        /*
+          Lambda call:
+          
+          ((lambda (a) (+ a 10)) 20) {}  => (begin (+ a 10)) {a: 20}  =>  (+ 20 10) {a: 20}  =>  30
+        */
         Expression::Value(Value::Lambda {
             args: args_names,
             env,
