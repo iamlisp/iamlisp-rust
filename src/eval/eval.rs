@@ -1,7 +1,7 @@
 use crate::data::List;
 use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
-use crate::{cond_symbol, list};
+use crate::{begin_symbol, cond_symbol, def_symbol, list};
 use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
@@ -15,8 +15,8 @@ struct StackEntry {
 type CallStack = List<StackEntry>;
 
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
-    let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
-    let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
+    let input_is_def = matches!(stack_entry.input.head(), Some(def_symbol!()));
+    let output_is_def = matches!(stack_entry.output.head(), Some(def_symbol!()));
 
     input_is_def || output_is_def
 }
@@ -58,8 +58,8 @@ fn iamlisp_eval_variables_definition(
 
     match output_vec.as_slice() {
         &[] => match stack_entry.input.shift() {
-            Some(Expression::Symbol("def")) => {
-                stack_entry.output.push(Expression::Symbol("def"));
+            Some(def_symbol!()) => {
+                stack_entry.output.push(def_symbol!());
             }
             _ => {
                 bail!(
@@ -68,9 +68,9 @@ fn iamlisp_eval_variables_definition(
                 );
             }
         },
-        &[Expression::Symbol("def"), Expression::Symbol(name), value] => {
+        &[def_symbol!(), Expression::Symbol(name), value] => {
             stack_entry.env.set(name, value.clone());
-            stack_entry.output = list![Expression::Symbol("def")];
+            stack_entry.output = list![def_symbol!()];
         }
         _ => bail!(
             "Unexpected variable definition output state: {}",
@@ -138,18 +138,18 @@ fn iamlisp_eval_cond_expression(
                 );
             }
         },
-        &[cond_symbol!()] if stack_entry.input.len() == 1 => match stack_entry.input.shift() {
-            Some(default_expr) => {
-                stack.push_top(StackEntry {
-                    env: stack_entry.env.clone(),
-                    input: list![Expression::Symbol("begin"), default_expr],
-                    output: list![],
-                });
-            }
-            _ => {
-                bail!("Test expression is expected in cond construct");
-            }
-        },
+        &[cond_symbol!()] if stack_entry.input.len() == 1 => {
+            let default_expr = stack_entry
+                .input
+                .shift()
+                .unwrap_or_else(|| Value::Nil.into());
+
+            stack.push_top(StackEntry {
+                env: stack_entry.env.clone(),
+                input: list![begin_symbol!(), default_expr],
+                output: list![],
+            });
+        }
         &[cond_symbol!()] => match stack_entry.input.shift() {
             Some(test_expr) => {
                 iamlisp_eval_expression(&test_expr, stack_entry, stack)?;
@@ -176,7 +176,7 @@ fn iamlisp_eval_cond_expression(
 
             stack.push_top(StackEntry {
                 env: stack_entry.env.clone(),
-                input: list![Expression::Symbol("begin"), true_expr],
+                input: list![begin_symbol!(), true_expr],
                 output: list![],
             });
         }
@@ -327,7 +327,7 @@ fn iamlisp_call_function(
             Some(expression) => expression.clone(),
             None => Value::Nil.into(),
         },
-        Expression::Symbol("begin") => match args_values.iter().last() {
+        begin_symbol!() => match args_values.iter().last() {
             Some(expression) => expression.clone(),
             None => Value::Nil.into(),
         },
@@ -368,7 +368,7 @@ fn iamlisp_call_function(
                 }
             }
 
-            body.push_top(Expression::Symbol("begin"));
+            body.push_top(begin_symbol!());
 
             call_stack.push_top(StackEntry {
                 env,
@@ -596,7 +596,7 @@ mod tests {
     fn test_def_definition() {
         let env = Env::new();
         let expression: List<_> = list![
-            Expression::Symbol("def"),
+            def_symbol!(),
             Expression::Symbol("a"),
             list![
                 Expression::Symbol("+"),
@@ -625,11 +625,11 @@ mod tests {
     fn test_cond_expression_basic() {
         let env = Env::new();
 
-        let if_true_exp = list![Expression::Symbol("begin"), Value::Int64(10).into()];
-        let if_false_exp = list![Expression::Symbol("begin"), Value::Int64(20).into()];
+        let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
+        let if_false_exp = list![begin_symbol!(), Value::Int64(20).into()];
 
         {
-            let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(true).into()];
+            let predicate_exp = list![begin_symbol!(), Value::Bool(true).into()];
 
             let expression: List<_> = list![
                 Expression::Symbol("cond"),
@@ -644,7 +644,7 @@ mod tests {
         };
 
         {
-            let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(false).into()];
+            let predicate_exp = list![begin_symbol!(), Value::Bool(false).into()];
 
             let expression: List<_> = list![
                 Expression::Symbol("cond"),
@@ -662,11 +662,11 @@ mod tests {
     #[test]
     fn test_cond_expression_opposite_not_evaluated() {
         let env = Env::new();
-        let predicate_exp = list![Expression::Symbol("begin"), Value::Bool(true).into()];
+        let predicate_exp = list![begin_symbol!(), Value::Bool(true).into()];
 
-        let if_true_exp = list![Expression::Symbol("begin"), Value::Int64(10).into()];
+        let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
         let if_false_exp = list![
-            Expression::Symbol("def"),
+            def_symbol!(),
             Expression::Symbol("a"),
             Value::Int64(20).into()
         ];
