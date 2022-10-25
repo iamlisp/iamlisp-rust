@@ -1,4 +1,4 @@
-use crate::eval::eval::{iamlisp_eval_expression, CallStack, StackEntry};
+use crate::eval::eval::{iamlisp_eval_next_input_expression, CallStack, StackEntry};
 use crate::eval::types::{Expression, Value};
 use crate::{begin_symbol, cond_symbol, list};
 use anyhow::bail;
@@ -44,7 +44,7 @@ pub(crate) fn iamlisp_eval_cond_expression(
         }
         &[cond_symbol!()] => match stack_entry.input.shift() {
             Some(test_expr) => {
-                iamlisp_eval_expression(&test_expr, stack_entry, stack)?;
+                iamlisp_eval_next_input_expression(&test_expr, stack_entry, stack)?;
             }
             _ => {
                 bail!("Test expression is expected in cond construct");

@@ -83,7 +83,7 @@ fn iamlisp_eval_variables_definition(
         (Some(Expression::Symbol(name)), Some(expr)) => {
             stack_entry.output.push(Expression::Symbol(name));
 
-            iamlisp_eval_expression(&expr, stack_entry, stack)?;
+            iamlisp_eval_next_input_expression(&expr, stack_entry, stack)?;
         }
         _ => (),
     }
@@ -178,7 +178,7 @@ fn iamlisp_eval_macro_definition(
     Ok(())
 }
 
-pub(crate) fn iamlisp_eval_expression(
+pub(crate) fn iamlisp_eval_next_input_expression(
     expression: &Expression,
     mut current_stack_entry: StackEntry,
     stack: &mut CallStack,
@@ -357,7 +357,7 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
 
                 match stack_entry.input.shift() {
                     Some(expression) => {
-                        iamlisp_eval_expression(&expression, stack_entry, &mut stack)?;
+                        iamlisp_eval_next_input_expression(&expression, stack_entry, &mut stack)?;
                     }
                     None => match stack_entry.output.head().cloned() {
                         Some(callable) => {
