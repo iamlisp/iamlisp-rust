@@ -1,8 +1,45 @@
 use crate::data::List;
+use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
 use anyhow::{anyhow, Result};
 use std::collections::HashMap;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
 use std::sync::{Arc, Mutex};
+
+#[derive(Clone)]
+pub(crate) struct NativeCall(pub(crate) Arc<Box<dyn Op>>);
+
+impl Deref for NativeCall {
+    type Target = Arc<Box<dyn Op>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl PartialEq for NativeCall {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.name() == other.0.name()
+    }
+
+    fn ne(&self, other: &Self) -> bool {
+        self.0.name() != other.0.name()
+    }
+}
+
+impl Into<Expression> for NativeCall {
+    fn into(self) -> Expression {
+        Expression::Value(Value::NativeCall(self))
+    }
+}
+
+impl Debug for NativeCall {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeCall")
+            .field("name", &self.0.name())
+            .finish()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub(crate) struct Env {
@@ -12,10 +49,17 @@ pub(crate) struct Env {
 
 impl Env {
     pub(crate) fn new() -> Self {
-        Self {
+        let env = Self {
             values: Arc::new(Mutex::new(HashMap::new())),
             parent: None,
-        }
+        };
+
+        env.set("+", NativeCall(Arc::new(Box::from(Sum))).into());
+        env.set("-", NativeCall(Arc::new(Box::from(Subtract))).into());
+        env.set("/", NativeCall(Arc::new(Box::from(Divide))).into());
+        env.set("*", NativeCall(Arc::new(Box::from(Multiply))).into());
+
+        env
     }
 
     pub(crate) fn get(&self, name: &'static str) -> Option<Expression> {
@@ -56,6 +100,7 @@ pub(crate) enum Value {
     String(String),
     Bool(bool),
     Nil,
+    NativeCall(NativeCall),
     Lambda {
         env: Env,
         args: Box<List<Expression>>,
@@ -83,6 +128,7 @@ impl Display for Expression {
             Expression::Value(Value::String(s)) => format!("{}", s),
             Expression::Value(Value::Bool(b)) => format!("{}", b),
             Expression::Value(Value::Nil) => "Nil".to_string(),
+            Expression::Value(Value::NativeCall(c)) => c.0.name().to_string(),
             Expression::Symbol(s) => format!("{}", s),
             Expression::Value(Value::Lambda { args, body, env: _ }) => {
                 format!("(lambda {} {})", args, body)

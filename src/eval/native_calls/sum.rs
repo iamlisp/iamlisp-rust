@@ -3,10 +3,15 @@ use crate::eval::native_calls::Op;
 use crate::eval::types::{Env, Expression, Value};
 use anyhow::bail;
 
-pub(crate) struct Sum {}
+#[derive(Clone, PartialEq)]
+pub(crate) struct Sum;
 
 impl Op for Sum {
-    fn apply(args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
+    fn name(&self) -> &'static str {
+        "+"
+    }
+
+    fn apply(&self, args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
         Ok(match args.head() {
             Some(Expression::Value(Value::Int64(_))) => Value::Int64(
                 List::clone(&args)

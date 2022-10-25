@@ -18,3 +18,10 @@ macro_rules! def_symbol {
         $crate::eval::types::Expression::Symbol("def")
     };
 }
+
+#[macro_export]
+macro_rules! quote_symbol {
+    () => {
+        $crate::eval::types::Expression::Symbol("quote")
+    };
+}

@@ -1,8 +1,11 @@
 use crate::data::List;
-use crate::eval::forms::{iamlisp_eval_cond_expression, iamlisp_is_cond_expression};
+use crate::eval::forms::{
+    iamlisp_eval_cond_expression, iamlisp_eval_quote_expression, iamlisp_is_cond_expression,
+    iamlisp_is_quote_expression,
+};
 use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
-use crate::{begin_symbol, cond_symbol, def_symbol, list};
+use crate::{begin_symbol, cond_symbol, def_symbol, list, quote_symbol};
 use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
@@ -139,7 +142,7 @@ fn iamlisp_eval_lambda_definition(
     }
     .into();
 
-    iamlisp_return_result(lambda, stack, return_value)?;
+    iamlisp_pass_value_to_next_stack_entry(lambda, stack, return_value)?;
 
     Ok(())
 }
@@ -173,7 +176,7 @@ fn iamlisp_eval_macro_definition(
     }
     .into();
 
-    iamlisp_return_result(r#macro, stack, return_value)?;
+    iamlisp_pass_value_to_next_stack_entry(r#macro, stack, return_value)?;
 
     Ok(())
 }
@@ -222,21 +225,8 @@ fn iamlisp_call_function(
     call_stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    let env = &current_stack_entry.env;
-
     let result = match func {
-        // Math expressions
-        Expression::Symbol("+") => Sum::apply(&args_values, env)?,
-        Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
-        Expression::Symbol("-") => Subtract::apply(&args_values, env)?,
-        Expression::Symbol("/") => Divide::apply(&args_values, env)?,
-        Expression::Symbol("list") => List::clone(&args_values).into(),
-
         // Special forms
-        Expression::Symbol("quote") => match args_values.head() {
-            Some(expression) => expression.clone(),
-            None => Value::Nil.into(),
-        },
         begin_symbol!() => match args_values.iter().last() {
             Some(expression) => expression.clone(),
             None => Value::Nil.into(),
@@ -288,6 +278,11 @@ fn iamlisp_call_function(
 
             return Ok(());
         }
+
+        Expression::Value(Value::NativeCall(c)) => {
+            c.apply(args_values, &current_stack_entry.env)?
+        }
+
         ex => {
             bail!(
                 "Expression is not callable type: {} (args: {})",
@@ -297,10 +292,10 @@ fn iamlisp_call_function(
         }
     };
 
-    iamlisp_return_result(result, call_stack, return_value)
+    iamlisp_pass_value_to_next_stack_entry(result, call_stack, return_value)
 }
 
-fn iamlisp_return_result(
+pub(crate) fn iamlisp_pass_value_to_next_stack_entry(
     result: Expression,
     call_stack: &mut CallStack,
     return_value: &mut Expression,
@@ -355,14 +350,20 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                     continue;
                 }
 
+                if iamlisp_is_quote_expression(&mut stack_entry) {
+                    iamlisp_eval_quote_expression(stack_entry, &mut stack, &mut last_return_value)?;
+
+                    continue;
+                }
+
                 match stack_entry.input.shift() {
                     Some(expression) => {
                         iamlisp_eval_next_input_expression(&expression, stack_entry, &mut stack)?;
                     }
-                    None => match stack_entry.output.head().cloned() {
+                    None => match stack_entry.output.head() {
                         Some(callable) => {
                             iamlisp_call_function(
-                                &callable,
+                                &callable.clone(),
                                 &stack_entry.output.tail().clone(),
                                 stack_entry,
                                 &mut stack,
@@ -370,7 +371,7 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                             )?;
                         }
                         None => {
-                            iamlisp_return_result(
+                            iamlisp_pass_value_to_next_stack_entry(
                                 list![].into(),
                                 &mut stack,
                                 &mut last_return_value,
@@ -589,5 +590,30 @@ mod tests {
         assert_eq!(Expression::Value(Value::Int64(10)), result);
 
         assert_eq!(None, env.get("a"));
+    }
+
+    #[test]
+    fn test_quote_special_symbol() {
+        let env = Env::new();
+        let expr = list![
+            quote_symbol!(),
+            list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Expression::Symbol("b")
+            ]
+            .into()
+        ];
+
+        let result = iamlisp_eval(expr, env.clone()).unwrap();
+
+        assert_eq!(
+            Expression::List(Box::from(list![
+                Expression::Symbol("+"),
+                Expression::Symbol("a"),
+                Expression::Symbol("b")
+            ])),
+            result
+        );
     }
 }

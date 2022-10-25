@@ -3,10 +3,15 @@ use crate::eval::native_calls::Op;
 use crate::eval::types::{Env, Expression, Value};
 use anyhow::bail;
 
-pub(crate) struct Divide {}
+#[derive(Clone, PartialEq)]
+pub(crate) struct Divide;
 
 impl Op for Divide {
-    fn apply(args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
+    fn name(&self) -> &'static str {
+        "/"
+    }
+
+    fn apply(&self, args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
         Ok(match args.head() {
             Some(Expression::Value(Value::Int64(init))) => Value::Int64(
                 List::clone(args.tail())
@@ -51,7 +56,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Int64(5)),
-                Divide::apply(&args, &env).unwrap()
+                Divide.apply(&args, &env).unwrap()
             );
         };
 
@@ -61,7 +66,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Float64(2.0)),
-                Divide::apply(&args, &env).unwrap()
+                Divide.apply(&args, &env).unwrap()
             );
         }
 
@@ -71,7 +76,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Float64(2.5)),
-                Divide::apply(&args, &env).unwrap()
+                Divide.apply(&args, &env).unwrap()
             );
         };
 
@@ -81,7 +86,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Int64(5)),
-                Divide::apply(&args, &env).unwrap()
+                Divide.apply(&args, &env).unwrap()
             );
         }
     }
