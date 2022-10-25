@@ -1,23 +1,23 @@
 use crate::data::List;
-use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
+use crate::eval::forms::{iamlisp_eval_cond_expression, iamlisp_is_cond_expression};
+use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
-use crate::list;
+use crate::{begin_symbol, cond_symbol, def_symbol, list};
 use anyhow::{anyhow, bail};
 use std::mem::take;
 use std::ops::Deref;
 
-struct StackEntry {
-    input: List<Expression>,
-    output: List<Expression>,
-    env: Env,
+pub(crate) struct StackEntry {
+    pub(crate) input: List<Expression>,
+    pub(crate) output: List<Expression>,
+    pub(crate) env: Env,
 }
 
-type CallStack = List<StackEntry>;
-
+pub(crate) type CallStack = List<StackEntry>;
 
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
-    let input_is_def = matches!(stack_entry.input.head(), Some(Expression::Symbol("def")));
-    let output_is_def = matches!(stack_entry.output.head(), Some(Expression::Symbol("def")));
+    let input_is_def = matches!(stack_entry.input.head(), Some(def_symbol!()));
+    let output_is_def = matches!(stack_entry.output.head(), Some(def_symbol!()));
 
     input_is_def || output_is_def
 }
@@ -52,15 +52,15 @@ fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
  []         ()                              {a: 10, b: 30}
 */
 fn iamlisp_eval_variables_definition(
-    stack_entry: &mut StackEntry,
+    mut stack_entry: StackEntry,
     stack: &mut CallStack,
 ) -> anyhow::Result<()> {
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
     match output_vec.as_slice() {
-        &[] => match stack_entry.input.pop() {
-            Some(Expression::Symbol("def")) => {
-                stack_entry.output.push(Expression::Symbol("def"));
+        &[] => match stack_entry.input.shift() {
+            Some(def_symbol!()) => {
+                stack_entry.output.push(def_symbol!());
             }
             _ => {
                 bail!(
@@ -69,9 +69,9 @@ fn iamlisp_eval_variables_definition(
                 );
             }
         },
-        &[Expression::Symbol("def"), Expression::Symbol(name), value] => {
+        &[def_symbol!(), Expression::Symbol(name), value] => {
             stack_entry.env.set(name, value.clone());
-            stack_entry.output = list![Expression::Symbol("def")];
+            stack_entry.output = list![def_symbol!()];
         }
         _ => bail!(
             "Unexpected variable definition output state: {}",
@@ -79,11 +79,11 @@ fn iamlisp_eval_variables_definition(
         ),
     }
 
-    match (stack_entry.input.pop(), stack_entry.input.pop()) {
+    match (stack_entry.input.shift(), stack_entry.input.shift()) {
         (Some(Expression::Symbol(name)), Some(expr)) => {
             stack_entry.output.push(Expression::Symbol(name));
 
-            iamlisp_eval_expression(&expr, stack_entry, stack)?;
+            iamlisp_eval_next_input_expression(&expr, stack_entry, stack)?;
         }
         _ => (),
     }
@@ -91,23 +91,41 @@ fn iamlisp_eval_variables_definition(
     Ok(())
 }
 
+/*
+ Cond expression:
+
+ []             (cond (> 1 2) 10 20)            {}
+
+ [cond]         ((> 1 2) 10 20)                 {}
+
+ []             (> 1 2)                         {}
+ [cond]         (10 20)
+
+ [> 1 2]        ()                              {}
+ [cond]         (10 20)
+
+ [cond false]   (10 20)                         {}
+
+ []             (begin 20)                      {}
+*/
+
 fn iamlisp_is_lambda_definition(stack_entry: &StackEntry) -> bool {
     matches!(stack_entry.input.head(), Some(Expression::Symbol("lambda")))
 }
 
 fn iamlisp_eval_lambda_definition(
-    stack_entry: &mut StackEntry,
+    mut stack_entry: StackEntry,
     stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    match stack_entry.input.pop() {
+    match stack_entry.input.shift() {
         Some(Expression::Symbol("lambda")) => (),
         _ => {
             bail!("Invalid lambda expression");
         }
     };
 
-    let lambda_args = match stack_entry.input.pop() {
+    let lambda_args = match stack_entry.input.shift() {
         Some(Expression::List(lambda_args)) => lambda_args,
         _ => {
             bail!("Invalid lambda arguments");
@@ -131,18 +149,18 @@ fn iamlisp_is_macro_definition(stack_entry: &StackEntry) -> bool {
 }
 
 fn iamlisp_eval_macro_definition(
-    stack_entry: &mut StackEntry,
+    mut stack_entry: StackEntry,
     stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    match stack_entry.input.pop() {
+    match stack_entry.input.shift() {
         Some(Expression::Symbol("macro")) => (),
         _ => {
             bail!("Invalid macro expression");
         }
     };
 
-    let lambda_args = match stack_entry.input.pop() {
+    let lambda_args = match stack_entry.input.shift() {
         Some(Expression::List(lambda_args)) => lambda_args,
         _ => {
             bail!("Invalid macro arguments");
@@ -160,21 +178,19 @@ fn iamlisp_eval_macro_definition(
     Ok(())
 }
 
-fn iamlisp_eval_expression(
+pub(crate) fn iamlisp_eval_next_input_expression(
     expression: &Expression,
-    current_stack_entry: &mut StackEntry,
+    mut current_stack_entry: StackEntry,
     stack: &mut CallStack,
 ) -> anyhow::Result<()> {
     match expression {
         Expression::List(list) => {
-            stack.push_top(StackEntry {
-                env: current_stack_entry.env.clone(),
-                input: current_stack_entry.input.clone(),
-                output: current_stack_entry.output.clone(),
-            });
+            let env = current_stack_entry.env.clone();
+
+            stack.push_top(current_stack_entry);
 
             stack.push_top(StackEntry {
-                env: current_stack_entry.env.clone(),
+                env,
                 input: *list.clone(),
                 output: list![],
             });
@@ -182,11 +198,7 @@ fn iamlisp_eval_expression(
         Expression::Value(value) => {
             current_stack_entry.output.push(value.clone().into());
 
-            stack.push_top(StackEntry {
-                env: current_stack_entry.env.clone(),
-                input: current_stack_entry.input.clone(),
-                output: current_stack_entry.output.clone(),
-            });
+            stack.push_top(current_stack_entry);
         }
         Expression::Symbol(name) => {
             current_stack_entry.output.push(
@@ -196,11 +208,7 @@ fn iamlisp_eval_expression(
                     .unwrap_or_else(move || Expression::Symbol(name)),
             );
 
-            stack.push_top(StackEntry {
-                env: current_stack_entry.env.clone(),
-                input: current_stack_entry.input.clone(),
-                output: current_stack_entry.output.clone(),
-            });
+            stack.push_top(current_stack_entry);
         }
     }
 
@@ -210,7 +218,7 @@ fn iamlisp_eval_expression(
 fn iamlisp_call_function(
     func: &Expression,
     args_values: &List<Expression>,
-    current_stack_entry: &mut StackEntry,
+    current_stack_entry: StackEntry,
     call_stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
@@ -229,14 +237,14 @@ fn iamlisp_call_function(
             Some(expression) => expression.clone(),
             None => Value::Nil.into(),
         },
-        Expression::Symbol("begin") => match args_values.iter().last() {
+        begin_symbol!() => match args_values.iter().last() {
             Some(expression) => expression.clone(),
             None => Value::Nil.into(),
         },
 
         /*
           Lambda call:
-          
+
           ((lambda (a) (+ a 10)) 20) {}  => (begin (+ a 10)) {a: 20}  =>  (+ 20 10) {a: 20}  =>  30
         */
         Expression::Value(Value::Lambda {
@@ -251,7 +259,7 @@ fn iamlisp_call_function(
             for arg_name in args_names.clone().into_iter() {
                 match arg_name {
                     Expression::Symbol(name) => {
-                        let value = match values.pop() {
+                        let value = match values.shift() {
                             Some(value) => value,
                             None => {
                                 bail!(
@@ -270,7 +278,7 @@ fn iamlisp_call_function(
                 }
             }
 
-            body.push_top(Expression::Symbol("begin"));
+            body.push_top(begin_symbol!());
 
             call_stack.push_top(StackEntry {
                 env,
@@ -317,17 +325,23 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
     let mut last_return_value = Value::Nil.into();
 
     loop {
-        match stack.pop() {
+        match stack.shift() {
             Some(mut stack_entry) => {
                 if iamlisp_is_variables_definition(&mut stack_entry) {
-                    iamlisp_eval_variables_definition(&mut stack_entry, &mut stack)?;
+                    iamlisp_eval_variables_definition(stack_entry, &mut stack)?;
+
+                    continue;
+                }
+
+                if iamlisp_is_cond_expression(&mut stack_entry) {
+                    iamlisp_eval_cond_expression(stack_entry, &mut stack)?;
 
                     continue;
                 }
 
                 if iamlisp_is_lambda_definition(&mut stack_entry) {
                     iamlisp_eval_lambda_definition(
-                        &mut stack_entry,
+                        stack_entry,
                         &mut stack,
                         &mut last_return_value,
                     )?;
@@ -336,25 +350,21 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
                 }
 
                 if iamlisp_is_macro_definition(&mut stack_entry) {
-                    iamlisp_eval_macro_definition(
-                        &mut stack_entry,
-                        &mut stack,
-                        &mut last_return_value,
-                    )?;
+                    iamlisp_eval_macro_definition(stack_entry, &mut stack, &mut last_return_value)?;
 
                     continue;
                 }
 
-                match stack_entry.input.pop() {
+                match stack_entry.input.shift() {
                     Some(expression) => {
-                        iamlisp_eval_expression(&expression, &mut stack_entry, &mut stack)?;
+                        iamlisp_eval_next_input_expression(&expression, stack_entry, &mut stack)?;
                     }
                     None => match stack_entry.output.head() {
                         Some(callable) => {
                             iamlisp_call_function(
                                 &callable.clone(),
                                 &stack_entry.output.tail().clone(),
-                                &mut stack_entry,
+                                stack_entry,
                                 &mut stack,
                                 &mut last_return_value,
                             )?;
@@ -492,7 +502,7 @@ mod tests {
     fn test_def_definition() {
         let env = Env::new();
         let expression: List<_> = list![
-            Expression::Symbol("def"),
+            def_symbol!(),
             Expression::Symbol("a"),
             list![
                 Expression::Symbol("+"),
@@ -515,5 +525,69 @@ mod tests {
 
         assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap());
         assert_eq!(Expression::Value(Value::Int64(6)), env.get("b").unwrap());
+    }
+
+    #[test]
+    fn test_cond_expression_basic() {
+        let env = Env::new();
+
+        let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
+        let if_false_exp = list![begin_symbol!(), Value::Int64(20).into()];
+
+        {
+            let predicate_exp = list![begin_symbol!(), Value::Bool(true).into()];
+
+            let expression: List<_> = list![
+                Expression::Symbol("cond"),
+                predicate_exp.into(),
+                if_true_exp.clone().into(),
+                if_false_exp.clone().into()
+            ];
+
+            let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+            assert_eq!(Expression::Value(Value::Int64(10)), result);
+        };
+
+        {
+            let predicate_exp = list![begin_symbol!(), Value::Bool(false).into()];
+
+            let expression: List<_> = list![
+                Expression::Symbol("cond"),
+                predicate_exp.into(),
+                if_true_exp.into(),
+                if_false_exp.into()
+            ];
+
+            let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+            assert_eq!(Expression::Value(Value::Int64(20)), result);
+        };
+    }
+
+    #[test]
+    fn test_cond_expression_opposite_not_evaluated() {
+        let env = Env::new();
+        let predicate_exp = list![begin_symbol!(), Value::Bool(true).into()];
+
+        let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
+        let if_false_exp = list![
+            def_symbol!(),
+            Expression::Symbol("a"),
+            Value::Int64(20).into()
+        ];
+
+        let expression: List<_> = list![
+            Expression::Symbol("cond"),
+            predicate_exp.into(),
+            if_true_exp.into(),
+            if_false_exp.into()
+        ];
+
+        let result = iamlisp_eval(expression, env.clone()).unwrap();
+
+        assert_eq!(Expression::Value(Value::Int64(10)), result);
+
+        assert_eq!(None, env.get("a"));
     }
 }

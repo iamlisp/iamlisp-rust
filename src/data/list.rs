@@ -56,7 +56,14 @@ impl<T> List<T> {
 
     pub(crate) fn tail(&self) -> &List<T> {
         match self {
-            List::Empty => &self,
+            List::Empty => self,
+            List::Normal { car: _, cdr } => cdr,
+        }
+    }
+
+    pub(crate) fn tail_mut(&mut self) -> &mut List<T> {
+        match self {
+            List::Empty => self,
             List::Normal { car: _, cdr } => cdr,
         }
     }
@@ -138,14 +145,21 @@ impl<T> List<T> {
         acc
     }
 
-    pub(crate) fn pop(&mut self) -> Option<T> {
+    pub(crate) fn shift(&mut self) -> Option<T> {
         match take(self) {
+            List::Empty => None,
             List::Normal { car, cdr } => {
                 *self = *cdr;
-
                 Some(car)
             }
-            List::Empty => None,
+        }
+    }
+
+    pub(crate) fn pop(&mut self) -> Option<T> {
+        if self.tail().is_empty() {
+            self.shift()
+        } else {
+            self.tail_mut().pop()
         }
     }
 
@@ -308,7 +322,7 @@ mod tests {
 
         assert_eq!("(0 1 2 3)", list.to_string());
 
-        assert_eq!(Some(0), list.pop());
+        assert_eq!(Some(0), list.shift());
 
         assert_eq!("(1 2 3)", list.to_string());
     }
