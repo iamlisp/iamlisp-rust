@@ -13,5 +13,6 @@ mod subtract;
 mod sum;
 
 pub(crate) trait Op {
-    fn apply(args: &List<Expression>, env: &Env) -> Result<Expression>;
+    fn name(&self) -> &'static str;
+    fn apply(&self, args: &List<Expression>, env: &Env) -> Result<Expression>;
 }

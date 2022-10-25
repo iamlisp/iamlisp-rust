@@ -222,16 +222,7 @@ fn iamlisp_call_function(
     call_stack: &mut CallStack,
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
-    let env = &current_stack_entry.env;
-
     let result = match func {
-        // Math expressions
-        Expression::Symbol("+") => Sum::apply(&args_values, env)?,
-        Expression::Symbol("*") => Multiply::apply(&args_values, env)?,
-        Expression::Symbol("-") => Subtract::apply(&args_values, env)?,
-        Expression::Symbol("/") => Divide::apply(&args_values, env)?,
-        Expression::Symbol("list") => List::clone(&args_values).into(),
-
         // Special forms
         Expression::Symbol("quote") => match args_values.head() {
             Some(expression) => expression.clone(),
@@ -288,6 +279,11 @@ fn iamlisp_call_function(
 
             return Ok(());
         }
+
+        Expression::Value(Value::NativeCall(c)) => {
+            c.apply(args_values, &current_stack_entry.env)?
+        }
+
         ex => {
             bail!(
                 "Expression is not callable type: {} (args: {})",

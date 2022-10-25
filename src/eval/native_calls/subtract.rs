@@ -3,10 +3,15 @@ use crate::eval::native_calls::Op;
 use crate::eval::types::{Env, Expression, Value};
 use anyhow::bail;
 
-pub(crate) struct Subtract {}
+#[derive(Clone, PartialEq)]
+pub(crate) struct Subtract;
 
 impl Op for Subtract {
-    fn apply(args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
+    fn name(&self) -> &'static str {
+        "-"
+    }
+
+    fn apply(&self, args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
         Ok(match args.head() {
             Some(Expression::Value(Value::Int64(init))) if args.tail().is_empty() => {
                 Value::Int64(-*init).into()
@@ -53,12 +58,16 @@ mod tests {
 
         assert_eq!(
             Expression::Value(Value::Int64(-10)),
-            Subtract::apply(&list![Value::Int64(10).into()], &env).unwrap()
+            Subtract
+                .apply(&list![Value::Int64(10).into()], &env)
+                .unwrap()
         );
 
         assert_eq!(
             Expression::Value(Value::Float64(-10.0)),
-            Subtract::apply(&list![Value::Float64(10.0).into()], &env).unwrap()
+            Subtract
+                .apply(&list![Value::Float64(10.0).into()], &env)
+                .unwrap()
         );
     }
 
@@ -72,7 +81,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Int64(-1)),
-                Subtract::apply(&args, &env).unwrap()
+                Subtract.apply(&args, &env).unwrap()
             );
         };
 
@@ -82,7 +91,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Float64(-0.5)),
-                Subtract::apply(&args, &env).unwrap()
+                Subtract.apply(&args, &env).unwrap()
             );
         }
 
@@ -92,7 +101,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Float64(-0.5)),
-                Subtract::apply(&args, &env).unwrap()
+                Subtract.apply(&args, &env).unwrap()
             );
         };
 
@@ -102,7 +111,7 @@ mod tests {
 
             assert_eq!(
                 Expression::Value(Value::Int64(-1)),
-                Subtract::apply(&args, &env).unwrap()
+                Subtract.apply(&args, &env).unwrap()
             );
         }
     }
