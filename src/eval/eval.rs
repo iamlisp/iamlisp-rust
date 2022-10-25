@@ -1,6 +1,6 @@
 use crate::data::List;
-use crate::eval::basic_ops::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::forms::{iamlisp_eval_cond_expression, iamlisp_is_cond_expression};
+use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
 use crate::{begin_symbol, cond_symbol, def_symbol, list};
 use anyhow::{anyhow, bail};
