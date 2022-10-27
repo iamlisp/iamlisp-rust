@@ -7,7 +7,7 @@ use std::cell::{RefCell, RefMut};
 use std::slice::SliceIndex;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
-struct Compiler {
+pub(crate) struct Compiler {
     program_iter: Box<dyn Iterator<Item = Token>>,
 }
 
@@ -55,36 +55,5 @@ impl Compiler {
         }
 
         bail!("Compile error: unexpected end of program while reading list")
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Compiler;
-    use crate::eval::types::Value;
-    use crate::read::tokenize::tokenize;
-    use crate::{list, symbol};
-
-    #[test]
-    fn read_whole_program() {
-        let program = r#"(+ (foo 1 "hello") 12.5)"#;
-        let tokens = tokenize(program.chars()).unwrap();
-
-        let mut compiler = Compiler::new(tokens);
-
-        assert_eq!(
-            list![list![
-                symbol!("+"),
-                list![
-                    symbol!("foo"),
-                    Value::Int64(1).into(),
-                    Value::String("hello".to_string()).into()
-                ]
-                .into(),
-                Value::Float64(12.5).into()
-            ]
-            .into()],
-            compiler.compile().unwrap()
-        );
     }
 }
