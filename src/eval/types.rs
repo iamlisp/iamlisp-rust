@@ -66,6 +66,12 @@ pub(crate) enum Expression {
     Symbol(&'static str),
 }
 
+impl Default for Expression {
+    fn default() -> Self {
+        Expression::Value(Value::Nil)
+    }
+}
+
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {

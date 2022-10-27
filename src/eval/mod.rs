@@ -9,9 +9,9 @@ pub(crate) mod symbols;
 pub(crate) mod types;
 
 pub(crate) fn create_env() -> Env {
-    let env = Env::new();
+    let mut env = Env::new();
 
-    load_native_calls(&env);
+    load_native_calls(&mut env);
 
     env
 }

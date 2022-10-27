@@ -206,7 +206,8 @@ pub(crate) fn iamlisp_eval_next_input_expression(
                 current_stack_entry
                     .env
                     .get(name)
-                    .unwrap_or_else(move || Expression::Symbol(name)),
+                    .map(Clone::clone)
+                    .ok_or_else(|| anyhow::anyhow!("Symbol {} is not defined", name))?,
             );
 
             stack.push_top(current_stack_entry);
@@ -224,12 +225,6 @@ fn iamlisp_call_function(
     return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     let result = match func {
-        // Special forms
-        begin_symbol!() => match args_values.iter().last() {
-            Some(expression) => expression.clone(),
-            None => Value::Nil.into(),
-        },
-
         /*
           Lambda call:
 
@@ -240,7 +235,7 @@ fn iamlisp_call_function(
             env,
             body,
         }) => {
-            let env = env.child();
+            let mut env = env.child();
             let mut values = List::clone(&args_values);
             let mut body = List::clone(&body);
 
@@ -523,8 +518,8 @@ mod tests {
 
         assert_eq!(Expression::Value(Value::Nil), result);
 
-        assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap());
-        assert_eq!(Expression::Value(Value::Int64(6)), env.get("b").unwrap());
+        assert_eq!(&Expression::Value(Value::Int64(3)), env.get("a").unwrap());
+        assert_eq!(&Expression::Value(Value::Int64(6)), env.get("b").unwrap());
     }
 
     #[test]
