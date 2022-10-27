@@ -1,4 +1,11 @@
 #[macro_export]
+macro_rules! symbol {
+    ($name:literal) => {
+        $crate::eval::types::Expression::Symbol($name)
+    };
+}
+
+#[macro_export]
 macro_rules! cond_symbol {
     () => {
         $crate::eval::types::Expression::Symbol("cond")

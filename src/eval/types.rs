@@ -123,13 +123,13 @@ impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             Expression::List(l) => format!("{}", l),
-            Expression::Value(Value::Int64(i)) => format!("{}", i),
-            Expression::Value(Value::Float64(f)) => format!("{}", f),
-            Expression::Value(Value::String(s)) => format!("{}", s),
-            Expression::Value(Value::Bool(b)) => format!("{}", b),
+            Expression::Value(Value::Int64(int)) => format!("{}", int),
+            Expression::Value(Value::Float64(float)) => format!("{}", float),
+            Expression::Value(Value::String(string)) => format!("{}", string),
+            Expression::Value(Value::Bool(bool)) => format!("{}", bool),
             Expression::Value(Value::Nil) => "Nil".to_string(),
             Expression::Value(Value::NativeCall(c)) => c.0.name().to_string(),
-            Expression::Symbol(s) => format!("{}", s),
+            Expression::Symbol(symbol) => format!("{}", symbol),
             Expression::Value(Value::Lambda { args, body, env: _ }) => {
                 format!("(lambda {} {})", args, body)
             }
