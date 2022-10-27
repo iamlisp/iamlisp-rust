@@ -1,9 +1,10 @@
 use crate::data::List;
+use crate::eval::env::Env;
 use crate::eval::forms::{
     iamlisp_eval_cond_expression, iamlisp_eval_quote_expression, iamlisp_is_cond_expression,
     iamlisp_is_quote_expression,
 };
-use crate::eval::types::{Env, Expression, Value};
+use crate::eval::types::{Expression, Value};
 use crate::{begin_symbol, def_symbol, list, quote_symbol};
 use anyhow::bail;
 
@@ -385,10 +386,11 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::eval::create_env;
 
     #[test]
     fn test_eval_empty_list_into_empty_list() {
-        let env = Env::new();
+        let env = create_env();
         let exp = list![];
 
         let result = iamlisp_eval(exp, env).unwrap();
@@ -398,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_eval_nested_sum() {
-        let env = Env::new();
+        let env = create_env();
         let exp1: List<_> = list![
             Expression::Symbol("+"),
             Value::Int64(2).into(),
@@ -417,7 +419,7 @@ mod tests {
 
     #[test]
     fn test_lambda_definition() {
-        let env = Env::new();
+        let env = create_env();
         let expression: List<_> = list![
             Expression::Symbol("lambda"),
             list![Expression::Symbol("a")].into(),
@@ -448,7 +450,7 @@ mod tests {
 
     #[test]
     fn test_lambda_call() {
-        let env = Env::new();
+        let env = create_env();
         let lambda: List<_> = list![
             Expression::Symbol("lambda"),
             list![Expression::Symbol("a")].into(),
@@ -468,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_macro_definition() {
-        let env = Env::new();
+        let env = create_env();
         let expression: List<_> = list![
             Expression::Symbol("macro"),
             list![Expression::Symbol("a")].into(),
@@ -498,7 +500,7 @@ mod tests {
 
     #[test]
     fn test_def_definition() {
-        let env = Env::new();
+        let env = create_env();
         let expression: List<_> = list![
             def_symbol!(),
             Expression::Symbol("a"),
@@ -527,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_cond_expression_basic() {
-        let env = Env::new();
+        let env = create_env();
 
         let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
         let if_false_exp = list![begin_symbol!(), Value::Int64(20).into()];
@@ -565,7 +567,7 @@ mod tests {
 
     #[test]
     fn test_cond_expression_opposite_not_evaluated() {
-        let env = Env::new();
+        let env = create_env();
         let predicate_exp = list![begin_symbol!(), Value::Bool(true).into()];
 
         let if_true_exp = list![begin_symbol!(), Value::Int64(10).into()];
@@ -591,7 +593,7 @@ mod tests {
 
     #[test]
     fn test_quote_special_symbol() {
-        let env = Env::new();
+        let env = create_env();
         let expr = list![
             quote_symbol!(),
             list![
