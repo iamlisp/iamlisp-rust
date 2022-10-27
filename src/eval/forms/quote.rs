@@ -1,6 +1,6 @@
 use crate::eval::eval::{iamlisp_pass_value_to_next_stack_entry, CallStack, StackEntry};
-use crate::eval::types::{Expression, Value};
-use crate::{begin_symbol, list, quote_symbol};
+use crate::eval::types::Expression;
+use crate::quote_symbol;
 use anyhow::bail;
 
 pub(crate) fn iamlisp_is_quote_expression(stack_entry: &StackEntry) -> bool {

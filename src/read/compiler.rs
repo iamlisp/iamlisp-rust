@@ -3,9 +3,6 @@ use crate::eval::types::{Expression, Value};
 use crate::list;
 use crate::read::tokenize::Token;
 use anyhow::bail;
-use std::cell::{RefCell, RefMut};
-use std::slice::SliceIndex;
-use std::sync::atomic::{AtomicIsize, Ordering};
 
 pub(crate) struct Compiler {
     program_iter: Box<dyn Iterator<Item = Token>>,
@@ -18,7 +15,7 @@ impl Compiler {
         }
     }
 
-    pub(crate) fn compile(&mut self) -> anyhow::Result<List<Expression>> {
+    pub(crate) fn compile(mut self) -> anyhow::Result<List<Expression>> {
         let mut expressions = list![];
 
         while let Some(token) = self.program_iter.next() {

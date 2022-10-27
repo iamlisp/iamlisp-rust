@@ -1,6 +1,5 @@
 use crate::data::List;
 use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
-use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 use std::ops::Deref;
@@ -152,9 +151,4 @@ impl Into<Expression> for List<Expression> {
     fn into(self) -> Expression {
         Expression::List(Box::from(self))
     }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
 }

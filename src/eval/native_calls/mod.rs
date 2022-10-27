@@ -1,6 +1,6 @@
 use crate::data::List;
 use crate::eval::types::{Env, Expression};
-use anyhow::{bail, Result};
+use anyhow::Result;
 
 pub(crate) use divide::Divide;
 pub(crate) use multiply::Multiply;

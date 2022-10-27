@@ -1,7 +1,5 @@
 use std::fmt::{Display, Formatter};
-use std::fs::read;
 use std::mem::take;
-use std::ptr::replace;
 
 #[macro_export]
 macro_rules! list {
@@ -92,10 +90,7 @@ impl<T> List<T> {
     }
 
     pub(crate) fn push_top(&mut self, item: T) -> &mut Self {
-        *self = List::Normal {
-            car: item,
-            cdr: Box::new(take(self)),
-        };
+        *self = Self::cons(item, take(self));
 
         self
     }

@@ -3,12 +3,9 @@ use crate::eval::forms::{
     iamlisp_eval_cond_expression, iamlisp_eval_quote_expression, iamlisp_is_cond_expression,
     iamlisp_is_quote_expression,
 };
-use crate::eval::native_calls::{Divide, Multiply, Op, Subtract, Sum};
 use crate::eval::types::{Env, Expression, Value};
-use crate::{begin_symbol, cond_symbol, def_symbol, list, quote_symbol};
-use anyhow::{anyhow, bail};
-use std::mem::take;
-use std::ops::Deref;
+use crate::{begin_symbol, def_symbol, list, quote_symbol};
+use anyhow::bail;
 
 pub(crate) struct StackEntry {
     pub(crate) input: List<Expression>,

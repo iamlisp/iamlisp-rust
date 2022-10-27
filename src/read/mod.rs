@@ -9,9 +9,7 @@ mod tokenize;
 pub(crate) fn compile(program: &str) -> anyhow::Result<List<Expression>> {
     let tokens = tokenize(program.chars()).unwrap();
 
-    let mut compiler = Compiler::new(tokens);
-
-    compiler.compile()
+    Compiler::new(tokens).compile()
 }
 
 #[cfg(test)]
