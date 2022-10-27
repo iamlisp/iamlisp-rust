@@ -1,2 +1,3 @@
 // mod reader;
-mod tokenizer;
+mod compile;
+mod tokenize;
