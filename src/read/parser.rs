@@ -4,18 +4,18 @@ use crate::list;
 use crate::read::tokenize::Token;
 use anyhow::bail;
 
-pub(crate) struct Compiler {
+pub(crate) struct Parser {
     program_iter: Box<dyn Iterator<Item = Token>>,
 }
 
-impl Compiler {
+impl Parser {
     pub(crate) fn new(program_tokens: Vec<Token>) -> Self {
         Self {
             program_iter: Box::new(program_tokens.into_iter()),
         }
     }
 
-    pub(crate) fn compile(mut self) -> anyhow::Result<List<Expression>> {
+    pub(crate) fn parse(mut self) -> anyhow::Result<List<Expression>> {
         let mut expressions = list![];
 
         while let Some(token) = self.program_iter.next() {
