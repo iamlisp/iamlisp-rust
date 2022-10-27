@@ -202,12 +202,9 @@ pub(crate) fn iamlisp_eval_next_input_expression(
             stack.push_top(current_stack_entry);
         }
         Expression::Symbol(name) => {
-            current_stack_entry.output.push(
-                current_stack_entry
-                    .env
-                    .get(name)
-                    .ok_or_else(|| anyhow::anyhow!("Symbol {} is not defined", name))?,
-            );
+            current_stack_entry
+                .output
+                .push(get_from_env(name, &current_stack_entry.env)?);
 
             stack.push_top(current_stack_entry);
         }
@@ -301,11 +298,19 @@ pub(crate) fn iamlisp_pass_value_to_next_stack_entry(
     Ok(())
 }
 
-pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Expression> {
+pub(crate) fn iamlisp_eval(expr: &Expression, env: &Env) -> anyhow::Result<Expression> {
+    Ok(match expr {
+        Expression::List(list) => iamlisp_eval_list(list, env)?,
+        Expression::Symbol(name) => get_from_env(name, env)?,
+        value => value.clone(),
+    })
+}
+
+pub(crate) fn iamlisp_eval_list(expr: &List<Expression>, env: &Env) -> anyhow::Result<Expression> {
     let initial_entry = StackEntry {
-        input: exp,
+        input: expr.clone(),
         output: list![],
-        env,
+        env: env.clone(),
     };
     let mut stack = list![initial_entry];
 
@@ -377,6 +382,11 @@ pub(crate) fn iamlisp_eval(exp: List<Expression>, env: Env) -> anyhow::Result<Ex
     }
 }
 
+pub(crate) fn get_from_env(name: &'static str, env: &Env) -> anyhow::Result<Expression> {
+    env.get(name)
+        .ok_or_else(|| anyhow::anyhow!("Symbol {} is not defined", name))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -385,9 +395,9 @@ mod tests {
     #[test]
     fn test_eval_empty_list_into_empty_list() {
         let env = create_env();
-        let exp = list![];
+        let expr = list![];
 
-        let result = iamlisp_eval(exp, env).unwrap();
+        let result = iamlisp_eval_list(&expr, &env).unwrap();
 
         assert_eq!(Expression::List(Box::new(list![])), result)
     }
@@ -406,7 +416,7 @@ mod tests {
             Value::Int64(10).into()
         ];
 
-        let result = iamlisp_eval(exp2, env).unwrap();
+        let result = iamlisp_eval_list(&exp2, &env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(15)), result)
     }
@@ -425,7 +435,7 @@ mod tests {
             .into()
         ];
 
-        let result = iamlisp_eval(expression, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expression, &env).unwrap();
 
         assert_eq!(
             Expression::Value(Value::Lambda {
@@ -457,7 +467,7 @@ mod tests {
         ];
         let expression = list![lambda.into(), Value::Int64(10).into()];
 
-        let result = iamlisp_eval(expression, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expression, &env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(20)), result);
     }
@@ -476,7 +486,7 @@ mod tests {
             .into()
         ];
 
-        let result = iamlisp_eval(expression, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expression, &env).unwrap();
 
         assert_eq!(
             Expression::Value(Value::Macro {
@@ -513,7 +523,7 @@ mod tests {
             .into()
         ];
 
-        let result = iamlisp_eval(expression, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expression, &env).unwrap();
 
         assert_eq!(Expression::Value(Value::Nil), result);
 
@@ -538,7 +548,7 @@ mod tests {
                 if_false_exp.clone().into()
             ];
 
-            let result = iamlisp_eval(expression, env.clone()).unwrap();
+            let result = iamlisp_eval_list(&expression, &env).unwrap();
 
             assert_eq!(Expression::Value(Value::Int64(10)), result);
         };
@@ -553,7 +563,7 @@ mod tests {
                 if_false_exp.into()
             ];
 
-            let result = iamlisp_eval(expression, env.clone()).unwrap();
+            let result = iamlisp_eval_list(&expression, &env).unwrap();
 
             assert_eq!(Expression::Value(Value::Int64(20)), result);
         };
@@ -578,7 +588,7 @@ mod tests {
             if_false_exp.into()
         ];
 
-        let result = iamlisp_eval(expression, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expression, &env).unwrap();
 
         assert_eq!(Expression::Value(Value::Int64(10)), result);
 
@@ -598,7 +608,7 @@ mod tests {
             .into()
         ];
 
-        let result = iamlisp_eval(expr, env.clone()).unwrap();
+        let result = iamlisp_eval_list(&expr, &env).unwrap();
 
         assert_eq!(
             Expression::List(Box::from(list![
