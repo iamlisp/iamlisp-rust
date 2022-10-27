@@ -206,7 +206,6 @@ pub(crate) fn iamlisp_eval_next_input_expression(
                 current_stack_entry
                     .env
                     .get(name)
-                    .map(Clone::clone)
                     .ok_or_else(|| anyhow::anyhow!("Symbol {} is not defined", name))?,
             );
 
@@ -518,8 +517,8 @@ mod tests {
 
         assert_eq!(Expression::Value(Value::Nil), result);
 
-        assert_eq!(&Expression::Value(Value::Int64(3)), env.get("a").unwrap());
-        assert_eq!(&Expression::Value(Value::Int64(6)), env.get("b").unwrap());
+        assert_eq!(Expression::Value(Value::Int64(3)), env.get("a").unwrap());
+        assert_eq!(Expression::Value(Value::Int64(6)), env.get("b").unwrap());
     }
 
     #[test]

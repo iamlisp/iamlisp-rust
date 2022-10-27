@@ -1,36 +1,39 @@
 use crate::eval::types::Expression;
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::rc::Rc;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Env {
-    values: HashMap<&'static str, Expression>,
+    values: Rc<RefCell<HashMap<&'static str, Expression>>>,
     parent: Option<Box<Env>>,
 }
 
 impl Env {
     pub(crate) fn new() -> Self {
         let env = Self {
-            values: HashMap::new(),
+            values: Rc::default(),
             parent: None,
         };
 
         env
     }
 
-    pub(crate) fn get(&self, name: &'static str) -> Option<&Expression> {
+    pub(crate) fn get(&self, name: &'static str) -> Option<Expression> {
         self.values
+            .borrow()
             .get(name)
+            .cloned()
             .or_else(|| self.parent.as_ref().map(|e| e.get(name)).flatten())
     }
 
     pub(crate) fn set(&mut self, name: &'static str, value: Expression) {
-        self.values.insert(name, value);
+        self.values.borrow_mut().insert(name, value);
     }
 
     pub(crate) fn child(&self) -> Env {
         Env {
-            values: HashMap::new(),
+            values: Rc::default(),
             parent: Some(Box::from(self.clone())),
         }
     }
