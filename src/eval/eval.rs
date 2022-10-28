@@ -1,8 +1,8 @@
 use crate::data::List;
 use crate::eval::env::Env;
 use crate::eval::forms::{
-    iamlisp_eval_cond_expression, iamlisp_eval_quote_expression, iamlisp_is_cond_expression,
-    iamlisp_is_quote_expression,
+    iamlisp_eval_cond_expression, iamlisp_eval_loop_expression, iamlisp_eval_quote_expression,
+    iamlisp_is_cond_expression, iamlisp_is_loop_expression, iamlisp_is_quote_expression,
 };
 use crate::eval::types::{Expression, Value};
 use crate::{begin_symbol, def_symbol, list, quote_symbol};
@@ -353,6 +353,12 @@ pub(crate) fn iamlisp_eval_list(expr: &List<Expression>, env: &Env) -> anyhow::R
                     continue;
                 }
 
+                if iamlisp_is_loop_expression(&mut stack_entry) {
+                    iamlisp_eval_loop_expression(stack_entry, &mut stack, &mut last_return_value)?;
+
+                    continue;
+                }
+
                 match stack_entry.input.shift() {
                     Some(expression) => {
                         iamlisp_eval_next_input_expression(&expression, stack_entry, &mut stack)?;
@@ -391,6 +397,7 @@ pub(crate) fn get_from_env(name: &'static str, env: &Env) -> anyhow::Result<Expr
 mod tests {
     use super::*;
     use crate::eval::create_env;
+    use crate::loop_symbol;
 
     #[test]
     fn test_eval_empty_list_into_empty_list() {
@@ -615,6 +622,37 @@ mod tests {
                 Expression::Symbol("+"),
                 Expression::Symbol("a"),
                 Expression::Symbol("b")
+            ])),
+            result
+        );
+    }
+
+    #[test]
+    fn test_loop_special_symbol() {
+        let env = create_env();
+        let expr = list![
+            loop_symbol!(),
+            list![
+                Expression::Symbol("a"),
+                Expression::Value(Value::Int64(100)),
+                Expression::Symbol("b"),
+                Expression::Symbol("a")
+            ]
+            .into(),
+            list![
+                Expression::Symbol("list"),
+                Expression::Symbol("a"),
+                Expression::Symbol("b")
+            ]
+            .into()
+        ];
+
+        let result = iamlisp_eval_list(&expr, &env).unwrap();
+
+        assert_eq!(
+            Expression::List(Box::from(list![
+                Expression::Value(Value::Int64(100)),
+                Expression::Value(Value::Int64(100))
             ])),
             result
         );

@@ -1,12 +1,8 @@
 use crate::data::List;
 use crate::eval::eval::{iamlisp_eval_next_input_expression, CallStack, StackEntry};
 use crate::eval::types::{Expression, Value};
-use crate::{begin_symbol, list, loop_symbol};
+use crate::{begin_symbol, def_symbol, list, loop_symbol};
 use anyhow::bail;
-
-fn is_even(n: usize) -> bool {
-    n % 2 == 0
-}
 
 pub(crate) fn iamlisp_is_loop_expression(stack_entry: &StackEntry) -> bool {
     let input_is_loop = matches!(stack_entry.input.head(), Some(loop_symbol!()));
@@ -18,6 +14,7 @@ pub(crate) fn iamlisp_is_loop_expression(stack_entry: &StackEntry) -> bool {
 pub(crate) fn iamlisp_eval_loop_expression(
     mut stack_entry: StackEntry,
     stack: &mut CallStack,
+    return_value: &mut Expression,
 ) -> anyhow::Result<()> {
     let output_vec = stack_entry.output.iter().collect::<Vec<_>>();
 
@@ -26,6 +23,8 @@ pub(crate) fn iamlisp_eval_loop_expression(
             Some(loop_symbol!()) => {
                 stack_entry.output.push(loop_symbol!());
                 stack_entry.env = stack_entry.env.child();
+
+                // stack_entry.env.set("recur", todo!());
 
                 stack.push_top(stack_entry);
             }
@@ -37,35 +36,32 @@ pub(crate) fn iamlisp_eval_loop_expression(
             }
         },
         &[loop_symbol!()] => match stack_entry.input.shift() {
-            Some(Expression::List(args_list)) => {
-                let mut args_names = list![];
-                let mut args_values = list![];
+            Some(Expression::List(mut args_list)) => {
+                let mut body = stack_entry.input.clone();
+                body.push_top(begin_symbol!());
+                stack.push_top(StackEntry {
+                    input: body,
+                    output: list![],
+                    env: stack_entry.env.clone(),
+                });
 
-                for arg in args_list.iter().enumerate() {
-                    match arg {
-                        (i, Expression::Symbol(name)) if is_even(i) => {
-                            args_names.push(name.clone());
-                        }
-
-                        (i, e) if is_even(i) => {
-                            bail!(
-                                "Unexpected expression while reading loop init definition: {}",
-                                e
-                            );
-                        }
-
-                        (_, expression) => {
-                            args_values.push(expression.clone());
-                        }
-                    }
-                }
-
-                todo!();
+                args_list.push_top(def_symbol!());
+                stack.push_top(StackEntry {
+                    input: *args_list,
+                    output: list![],
+                    env: stack_entry.env.clone(),
+                });
             }
+
             _ => {
-                bail!("Initial definition expression is expected in loop construct");
+                bail!("Parameters should be of type list");
             }
         },
+
+        &[loop_symbol!(), Expression::List(args_names), Expression::List(args_values)] => {
+            bail!("{}: {}", args_names, args_values)
+        }
+
         _ => bail!(
             "Unexpected variable definition output state: {}",
             stack_entry.output
