@@ -14,26 +14,24 @@ impl Op for Divide {
 
     fn apply(&self, args: &List<Expression>, _env: &Env) -> anyhow::Result<Expression> {
         Ok(match args.head() {
-            Some(Expression::Value(Value::Int64(init))) => Value::Int64(
-                List::clone(args.tail())
-                    .into_iter()
-                    .try_fold(*init, |acc, exp| match exp {
-                        Expression::Value(Value::Int64(val)) => Ok(acc / val),
-                        Expression::Value(Value::Float64(val)) => Ok(acc / (val as i64)),
-                        x => bail!("Unable to divide {} by {}", acc, x),
-                    })?,
-            )
-            .into(),
-            Some(Expression::Value(Value::Float64(init))) => Value::Float64(
-                List::clone(args.tail())
-                    .into_iter()
-                    .try_fold(*init, |acc, exp| match exp {
-                        Expression::Value(Value::Int64(val)) => Ok(acc / (val as f64)),
-                        Expression::Value(Value::Float64(val)) => Ok(acc / val),
-                        x => bail!("Unable to divide {} by {}", acc, x),
-                    })?,
-            )
-            .into(),
+            Some(Expression::Value(Value::Int64(init))) => {
+                Value::Int64(args.tail().iter().try_fold(*init, |acc, exp| match exp {
+                    Expression::Value(Value::Int64(val)) => Ok(acc / *val),
+                    Expression::Value(Value::Float64(val)) => Ok(acc / (*val as i64)),
+                    x => bail!("Unable to divide {} by {}", acc, x),
+                })?)
+                .into()
+            }
+
+            Some(Expression::Value(Value::Float64(init))) => {
+                Value::Float64(args.tail().iter().try_fold(*init, |acc, exp| match exp {
+                    Expression::Value(Value::Int64(val)) => Ok(acc / (*val as f64)),
+                    Expression::Value(Value::Float64(val)) => Ok(acc / *val),
+                    x => bail!("Unable to divide {} by {}", acc, x),
+                })?)
+                .into()
+            }
+
             _ => bail!(
                 "Function not implemented for this kind of arguments: {}",
                 args

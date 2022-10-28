@@ -1,6 +1,7 @@
 use crate::data::List;
 use crate::eval::env::Env;
 use crate::eval::native_calls::begin::Begin;
+use crate::eval::native_calls::divide_int::DivideInt;
 use crate::eval::types::{Expression, NativeCall};
 use anyhow::Result;
 use divide::Divide;
@@ -24,6 +25,7 @@ pub(crate) fn load_native_calls(env: &mut Env) {
     env.set("+", NativeCall(Arc::new(Box::from(Sum))).into());
     env.set("-", NativeCall(Arc::new(Box::from(Subtract))).into());
     env.set("/", NativeCall(Arc::new(Box::from(Divide))).into());
+    env.set("//", NativeCall(Arc::new(Box::from(DivideInt))).into());
     env.set("*", NativeCall(Arc::new(Box::from(Multiply))).into());
     env.set("begin", NativeCall(Arc::new(Box::from(Begin))).into());
 }
