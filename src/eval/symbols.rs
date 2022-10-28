@@ -32,3 +32,10 @@ macro_rules! quote_symbol {
         $crate::eval::types::Expression::Symbol("quote")
     };
 }
+
+#[macro_export]
+macro_rules! loop_symbol {
+    () => {
+        $crate::eval::types::Expression::Symbol("loop")
+    };
+}
