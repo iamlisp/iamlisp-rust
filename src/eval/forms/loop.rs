@@ -1,3 +1,4 @@
+use crate::data::List;
 use crate::eval::eval::{iamlisp_eval_next_input_expression, CallStack, StackEntry};
 use crate::eval::types::{Expression, Value};
 use crate::{begin_symbol, list, loop_symbol};
