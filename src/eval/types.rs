@@ -78,7 +78,7 @@ impl Display for Expression {
             Expression::List(l) => format!("{}", l),
             Expression::Value(Value::Int64(int)) => format!("{}", int),
             Expression::Value(Value::Float64(float)) => format!("{}", float),
-            Expression::Value(Value::String(string)) => format!("{}", string),
+            Expression::Value(Value::String(string)) => format!(r#""{}""#, string),
             Expression::Value(Value::Bool(bool)) => format!("{}", bool),
             Expression::Value(Value::Nil) => "Nil".to_string(),
             Expression::Value(Value::NativeCall(c)) => c.0.name().to_string(),
