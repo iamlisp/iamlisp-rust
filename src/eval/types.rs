@@ -40,6 +40,31 @@ impl Debug for NativeCall {
     }
 }
 
+#[derive(Clone)]
+pub(crate) struct NativeFn(pub(crate) Arc<Box<dyn Fn(List<Expression>, Env) -> Expression>>);
+
+impl PartialEq for NativeFn {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+
+    fn ne(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Into<Expression> for NativeFn {
+    fn into(self) -> Expression {
+        Expression::Value(Value::NativeFn(self))
+    }
+}
+
+impl Debug for NativeFn {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("NativeFn").finish()
+    }
+}
+
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum Value {
     Int64(i64),
@@ -48,6 +73,7 @@ pub(crate) enum Value {
     Bool(bool),
     Nil,
     NativeCall(NativeCall),
+    NativeFn(NativeFn),
     Lambda {
         env: Env,
         args: Box<List<Expression>>,
@@ -82,6 +108,7 @@ impl Display for Expression {
             Expression::Value(Value::Bool(bool)) => format!("{}", bool),
             Expression::Value(Value::Nil) => "Nil".to_string(),
             Expression::Value(Value::NativeCall(c)) => c.0.name().to_string(),
+            Expression::Value(Value::NativeFn(_)) => "NativeFn".to_string(),
             Expression::Symbol(symbol) => format!("{}", symbol),
             Expression::Value(Value::Lambda { args, body, env: _ }) => {
                 format!("(lambda {} {})", args, body)
