@@ -1,8 +1,72 @@
 use crate::data::List;
+use crate::eval::env::Env;
 use crate::eval::eval::{iamlisp_eval_next_input_expression, CallStack, StackEntry};
+use crate::eval::native_calls::Op;
 use crate::eval::types::{Expression, Value};
 use crate::{begin_symbol, def_symbol, list, loop_symbol};
 use anyhow::bail;
+use std::sync::Mutex;
+
+pub(crate) struct LoopRecur<'a> {
+    args_names: List<Expression>,
+    body: List<Expression>,
+    call_stack: Mutex<&'a mut CallStack>,
+}
+
+impl<'a> LoopRecur<'a> {
+    fn new(
+        args_names: List<Expression>,
+        body: List<Expression>,
+        call_stack: &'a mut CallStack,
+    ) -> Self {
+        Self {
+            args_names,
+            body,
+            call_stack: Mutex::new(call_stack),
+        }
+    }
+}
+
+impl<'a> Op for LoopRecur<'a> {
+    fn name(&self) -> &'static str {
+        "recur"
+    }
+
+    fn apply(&self, args: &List<Expression>, env: &Env) -> anyhow::Result<Expression> {
+        if self.args_names.len() != args.len() {
+            bail!(
+                "Expected {} arguments, but provided {}",
+                self.args_names.len(),
+                args.len()
+            );
+        }
+
+        let mut body = self.body.clone();
+        body.push_top(begin_symbol!());
+        self.call_stack.lock().unwrap().push_top(StackEntry {
+            input: body,
+            output: list![],
+            env: env.clone(),
+        });
+
+        let mut def_params = self
+            .args_names
+            .iter()
+            .zip(args.iter())
+            .flat_map(|(k, v)| vec![k, v].into_iter())
+            .cloned()
+            .collect::<List<_>>();
+
+        def_params.push_top(def_symbol!());
+        self.call_stack.lock().unwrap().push_top(StackEntry {
+            input: def_params,
+            output: list![],
+            env: env.clone(),
+        });
+
+        Ok(Expression::Value(Value::Nil))
+    }
+}
 
 pub(crate) fn iamlisp_is_loop_expression(stack_entry: &StackEntry) -> bool {
     let input_is_loop = matches!(stack_entry.input.head(), Some(loop_symbol!()));
