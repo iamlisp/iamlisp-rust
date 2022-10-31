@@ -2,14 +2,16 @@ use crate::data::List;
 use crate::eval::env::Env;
 use crate::eval::eval::{iamlisp_eval_next_input_expression, CallStack, StackEntry};
 use crate::eval::native_calls::Op;
-use crate::eval::types::{Expression, Value};
+use crate::eval::types::{Expression, NativeCall, Value};
 use crate::{begin_symbol, def_symbol, list, loop_symbol};
 use anyhow::bail;
-use std::sync::Mutex;
+use std::mem::take;
+use std::sync::{Arc, Mutex};
 
 pub(crate) struct LoopRecur<'a> {
     args_names: List<Expression>,
     body: List<Expression>,
+    stack_size: i64,
     call_stack: Mutex<&'a mut CallStack>,
 }
 
@@ -17,11 +19,13 @@ impl<'a> LoopRecur<'a> {
     fn new(
         args_names: List<Expression>,
         body: List<Expression>,
+        stack_size: i64,
         call_stack: &'a mut CallStack,
     ) -> Self {
         Self {
             args_names,
             body,
+            stack_size,
             call_stack: Mutex::new(call_stack),
         }
     }
@@ -41,9 +45,15 @@ impl<'a> Op for LoopRecur<'a> {
             );
         }
 
+        let mut call_stack = self.call_stack.lock().unwrap();
+
+        while call_stack.len() > self.stack_size {
+            call_stack.shift();
+        }
+
         let mut body = self.body.clone();
         body.push_top(begin_symbol!());
-        self.call_stack.lock().unwrap().push_top(StackEntry {
+        call_stack.push_top(StackEntry {
             input: body,
             output: list![],
             env: env.clone(),
@@ -58,7 +68,7 @@ impl<'a> Op for LoopRecur<'a> {
             .collect::<List<_>>();
 
         def_params.push_top(def_symbol!());
-        self.call_stack.lock().unwrap().push_top(StackEntry {
+        call_stack.push_top(StackEntry {
             input: def_params,
             output: list![],
             env: env.clone(),
@@ -88,7 +98,24 @@ pub(crate) fn iamlisp_eval_loop_expression(
                 stack_entry.output.push(loop_symbol!());
                 stack_entry.env = stack_entry.env.child();
 
-                // stack_entry.env.set("recur", todo!());
+                let initial_parameters = match stack_entry.input.shift() {
+                    Some(Expression::List(params)) => *params,
+                    t => {
+                        bail!("Unexpected token in loop parameters expression: {:?}", t)
+                    }
+                };
+
+                let args_names = initial_parameters.iter().step_by(2).cloned().collect();
+                let loop_body = take(&mut stack_entry.input);
+
+                let stack_size = stack.len();
+
+                stack_entry.env.set(
+                    "recur",
+                    Expression::Value(Value::NativeCall(NativeCall(Arc::new(Box::from(
+                        LoopRecur::new(args_names, loop_body, stack_size, stack),
+                    ))))),
+                );
 
                 stack.push_top(stack_entry);
             }
