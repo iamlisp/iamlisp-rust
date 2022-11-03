@@ -14,26 +14,41 @@ mod tests {
     use crate::eval::create_env;
 
     #[test]
-    fn test_empty_program_eval_to_nil() {
+    fn test_primitives() {
+        let table = vec![
+            ("1", "1"),
+            ("1.5", "1.5"),
+            (r#""string""#, r#""string""#),
+            (r#""string\"string""#, r#""string"string""#),
+            ("true", "true"),
+            ("false", "false"),
+            ("", "Nil"),
+        ];
         let env = create_env();
 
-        assert_eq!("Nil", eval("", &env).unwrap())
+        for (program, expected_result) in table {
+            let result = eval(program, &env).unwrap();
+
+            assert_eq!(result, expected_result);
+        }
     }
 
     #[test]
-    fn test_empty_list_eval_to_empty_list() {
+    fn test_list_constructor() {
+        let table = vec![
+            ("()", "()"),
+            ("(list)", "()"),
+            (
+                r#"(list 1 2.5 "hello" true false)"#,
+                r#"(1 2.5 "hello" true false)"#,
+            ),
+        ];
         let env = create_env();
 
-        assert_eq!("()", eval("()", &env).unwrap())
-    }
+        for (program, expected_result) in table {
+            let result = eval(program, &env).unwrap();
 
-    #[test]
-    fn test_list_constructor_eval_to_list() {
-        let env = create_env();
-
-        assert_eq!(
-            r#"(1 2.5 "hello" true false)"#,
-            eval(r#"(list 1 2.5 "hello" true false)"#, &env).unwrap()
-        )
+            assert_eq!(result, expected_result);
+        }
     }
 }
