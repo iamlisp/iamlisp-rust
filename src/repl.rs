@@ -51,4 +51,25 @@ mod tests {
             assert_eq!(result, expected_result);
         }
     }
+
+    #[test]
+    fn test_math() {
+        let table = vec![
+            ("(+ 1 2)", "3"),
+            ("(+ 2.5 3.5)", "6"),
+            ("(- 10 6)", "4"),
+            ("(- 10.5 3.5)", "7"),
+            ("(* 2 3)", "6"),
+            ("(* 2.5 3.5)", "8.75"),
+            ("(/ 10 2)", "5"),
+            ("(/ 10.0 4.0)", "2.5"),
+        ];
+        let env = create_env();
+
+        for (program, expected_result) in table {
+            let result = eval(program, &env).unwrap();
+
+            assert_eq!(result, expected_result);
+        }
+    }
 }
