@@ -15,6 +15,7 @@ pub enum Token {
     SingleQuote,
     Sharp,
     Dot,
+    Nil,
 }
 
 enum TokenizerState {
@@ -132,6 +133,8 @@ where
 
                 if buff == "." {
                     tokens.push(Token::Dot)
+                } else if buff == "Nil" {
+                    tokens.push(Token::Nil)
                 } else if let Ok(bool) = buff.parse::<bool>() {
                     tokens.push(Token::Boolean(bool));
                 } else if let Ok(integer) = buff.parse::<i64>() {

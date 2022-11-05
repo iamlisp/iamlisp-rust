@@ -24,6 +24,7 @@ mod tests {
             ("true", "true"),
             ("false", "false"),
             ("", "Nil"),
+            ("Nil", "Nil"),
         ];
         let env = create_env();
 
