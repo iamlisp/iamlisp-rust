@@ -84,10 +84,20 @@ impl Display for Expression {
             Expression::Value(Value::NativeCall(c)) => c.0.name().to_string(),
             Expression::Symbol(symbol) => format!("{}", symbol),
             Expression::Value(Value::Lambda { args, body, env: _ }) => {
-                format!("(lambda {} {})", args, body)
+                let body_str = body
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!("(lambda {} {})", args, body_str)
             }
             Expression::Value(Value::Macro { args, body }) => {
-                format!("(macro {} {})", args, body)
+                let body_str = body
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                format!("(macro {} {})", args, body_str)
             }
         };
 

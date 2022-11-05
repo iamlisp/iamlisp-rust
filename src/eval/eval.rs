@@ -242,7 +242,7 @@ fn iamlisp_call_function(
                             Some(value) => value,
                             None => {
                                 bail!(
-                                    "Lambda expects {} arguments but were provided - {}",
+                                    "Lambda expects {} arguments but {} were provided",
                                     args_names.len(),
                                     args_values.len()
                                 )

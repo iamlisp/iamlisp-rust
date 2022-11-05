@@ -2,9 +2,10 @@ use crate::eval;
 use crate::eval::env::Env;
 use crate::read::parse;
 
-pub(crate) fn eval(program: &str, env: &Env) -> anyhow::Result<String> {
-    let expression = parse(program)?;
-    let result = eval::eval(&expression, &env)?;
+pub(crate) fn eval(program: &str, env: &Env) -> Result<String, String> {
+    let expression = parse(program).map_err(|e| e.to_string())?;
+    let result = eval::eval(&expression, &env).map_err(|e| e.to_string())?;
+
     Ok(format!("{}", result))
 }
 
@@ -70,6 +71,32 @@ mod tests {
             let result = eval(program, &env).unwrap();
 
             assert_eq!(result, expected_result);
+        }
+    }
+
+    #[test]
+    fn test_lambda() {
+        let env = create_env();
+
+        // Declare lambda
+        eval("(def f (lambda (x y) (+ x y)))", &env).unwrap();
+
+        let table = vec![
+            ("f", Ok("(lambda (x y) (+ x y))")),
+            ("(f 2 3)", Ok("5")),
+            ("(f (f 2 6) 3)", Ok("11")),
+            ("(f)", Err("Lambda expects 2 arguments but 0 were provided")),
+        ];
+
+        for (program, expected_result) in table {
+            let result = eval(program, &env);
+
+            assert_eq!(
+                result,
+                expected_result
+                    .map(|str| str.to_string())
+                    .map_err(|str| str.to_string())
+            );
         }
     }
 }
