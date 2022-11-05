@@ -2,22 +2,14 @@ use crate::data::List;
 use crate::eval::env::Env;
 use crate::eval::native_calls::begin::Begin;
 use crate::eval::native_calls::list_constructor::ListConstructor;
-use crate::eval::native_calls::pow::Pow;
 use crate::eval::types::{Expression, NativeCall};
 use anyhow::Result;
-use divide::Divide;
-use multiply::Multiply;
+use math::{Divide, Multiply, Pow, Subtract, Sum};
 use std::sync::Arc;
-use subtract::Subtract;
-use sum::Sum;
 
 mod begin;
-mod divide;
 mod list_constructor;
-mod multiply;
-mod pow;
-mod subtract;
-mod sum;
+mod math;
 
 pub(crate) trait Op {
     fn name(&self) -> &'static str;
