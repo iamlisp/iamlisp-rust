@@ -99,4 +99,16 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_lambda_env_not_leaking() {
+        let env = create_env();
+
+        eval("(def f (lambda (x) (def x 10) x))", &env).unwrap();
+
+        let result = eval("(f 10)", &env).unwrap();
+
+        assert_eq!(env.get("x"), None);
+        assert_eq!(result, "10")
+    }
 }
