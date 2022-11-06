@@ -283,25 +283,18 @@ fn iamlisp_call_function(
             let mut body = List::clone(&body);
 
             for arg_name in args_names.clone().into_iter() {
-                match arg_name {
-                    Expression::Symbol(name) => {
-                        let value = match values.shift() {
-                            Some(value) => value,
-                            None => {
-                                bail!(
-                                    "Lambda expects {} arguments but {} were provided",
-                                    args_names.len(),
-                                    args_values.len()
-                                )
-                            }
-                        };
+                let arg_value = match values.shift() {
+                    Some(value) => value,
+                    None => {
+                        bail!(
+                            "Lambda expects {} arguments but {} were provided",
+                            args_names.len(),
+                            args_values.len()
+                        )
+                    }
+                };
 
-                        env.set(name, value);
-                    }
-                    _ => {
-                        bail!("Unexpected symbol in lambda arguments");
-                    }
-                }
+                assign_env_values(&mut env, arg_name, arg_value)?;
             }
 
             body.push_top(begin_symbol!());
