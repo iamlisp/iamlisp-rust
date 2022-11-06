@@ -113,4 +113,19 @@ mod tests {
         assert_eq!(env.get("a"), None);
         assert_eq!(result, "10")
     }
+
+    // #[test]
+    fn test_cond_expression() {
+        let env = create_env();
+
+        let program = r#"
+            (def fib-tail (lambda (n) 
+              (def iter (lambda (n x y)
+                (cond ((<= i 0) x) ((iter (dec i) y (+ x y))))))
+              (iter n 0 1)))"#;
+
+        eval(program, &env).unwrap();
+
+        let result = eval("(fib-tail 5)", &env).unwrap();
+    }
 }
