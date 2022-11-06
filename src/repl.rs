@@ -134,6 +134,11 @@ mod tests {
 
         assert_eq!(eval("d", &env).unwrap(), "10");
         assert_eq!(eval("e", &env).unwrap(), "(20 30)");
+
+        assert_eq!(
+            eval("(def (d . e f) (list 10 20 30))", &env).err(),
+            Some("Rest argument can be only one".to_string())
+        )
     }
 
     // #[test]
