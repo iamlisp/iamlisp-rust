@@ -114,6 +114,23 @@ mod tests {
         assert_eq!(result, "10")
     }
 
+    #[test]
+    fn test_def_expression() {
+        let env = create_env();
+
+        eval("(def x 10)", &env).unwrap();
+        eval("(def y (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("x", &env).unwrap(), "10");
+        assert_eq!(eval("y", &env).unwrap(), "(10 20 30)");
+
+        eval("(def (a b c) (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("a", &env).unwrap(), "10");
+        assert_eq!(eval("b", &env).unwrap(), "20");
+        assert_eq!(eval("c", &env).unwrap(), "30");
+    }
+
     // #[test]
     fn test_cond_expression() {
         let env = create_env();

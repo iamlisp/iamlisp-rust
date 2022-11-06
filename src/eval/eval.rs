@@ -16,6 +16,34 @@ pub(crate) struct StackEntry {
 
 pub(crate) type CallStack = List<StackEntry>;
 
+fn assign_env_values(env: &mut Env, symbol: Expression, value: Expression) -> anyhow::Result<()> {
+    match (symbol, value) {
+        (Expression::List(symbols_list), Expression::List(values_list)) => {
+            if symbols_list.len() > values_list.len() {
+                bail!(
+                    "Not enough values to fill-up all arguments: {} > {}",
+                    symbols_list,
+                    values_list
+                );
+            }
+            let mut symbols_iter = symbols_list.into_iter();
+            let mut values_iter = values_list.into_iter();
+
+            while let (Some(symbol), Some(value)) = (symbols_iter.next(), values_iter.next()) {
+                assign_env_values(env, symbol, value)?;
+            }
+        }
+        (Expression::Symbol(name), value) => {
+            env.set(name, value);
+        }
+        (symbol, _) => {
+            bail!("{} - is not valid variable name", symbol);
+        }
+    }
+
+    Ok(())
+}
+
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
     let input_is_def = matches!(stack_entry.input.head(), Some(def_symbol!()));
     let output_is_def = matches!(stack_entry.output.head(), Some(def_symbol!()));
@@ -70,8 +98,8 @@ fn iamlisp_eval_variables_definition(
                 );
             }
         },
-        &[def_symbol!(), Expression::Symbol(name), value] => {
-            stack_entry.env.set(name, value.clone());
+        &[def_symbol!(), symbol, value] => {
+            assign_env_values(&mut stack_entry.env, symbol.clone(), value.clone())?;
             stack_entry.output = list![def_symbol!()];
         }
         _ => bail!(
@@ -81,8 +109,8 @@ fn iamlisp_eval_variables_definition(
     }
 
     match (stack_entry.input.shift(), stack_entry.input.shift()) {
-        (Some(Expression::Symbol(name)), Some(expr)) => {
-            stack_entry.output.push(Expression::Symbol(name));
+        (Some(symbol), Some(expr)) => {
+            stack_entry.output.push(symbol);
 
             iamlisp_eval_next_input_expression(&expr, stack_entry, stack)?;
         }
