@@ -64,6 +64,7 @@ pub(crate) enum Expression {
     Value(Value),
     List(Box<List<Expression>>),
     Symbol(&'static str),
+    Dot,
 }
 
 impl Default for Expression {
@@ -75,6 +76,7 @@ impl Default for Expression {
 impl Display for Expression {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
+            Expression::Dot => ".".to_string(),
             Expression::List(l) => format!("{}", l),
             Expression::Value(Value::Int64(int)) => format!("{}", int),
             Expression::Value(Value::Float64(float)) => format!("{}", float),

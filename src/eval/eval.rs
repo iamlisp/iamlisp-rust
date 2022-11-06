@@ -19,18 +19,34 @@ pub(crate) type CallStack = List<StackEntry>;
 fn assign_env_values(env: &mut Env, symbol: Expression, value: Expression) -> anyhow::Result<()> {
     match (symbol, value) {
         (Expression::List(symbols_list), Expression::List(values_list)) => {
-            if symbols_list.len() > values_list.len() {
-                bail!(
-                    "Not enough values to fill-up all arguments: {} > {}",
-                    symbols_list,
-                    values_list
-                );
-            }
             let mut symbols_iter = symbols_list.into_iter();
-            let mut values_iter = values_list.into_iter();
+            let mut values_list = *values_list;
 
-            while let (Some(symbol), Some(value)) = (symbols_iter.next(), values_iter.next()) {
-                assign_env_values(env, symbol, value)?;
+            let mut after_dot = false;
+
+            while let Some(symbol) = symbols_iter.next() {
+                if after_dot {
+                    assign_env_values(env, symbol, values_list.into())?;
+
+                    if symbols_iter.next().is_some() {
+                        bail!("Rest argument can be only one");
+                    }
+
+                    return Ok(());
+                }
+
+                if matches!(symbol, Expression::Dot) {
+                    after_dot = true;
+                } else {
+                    match values_list.shift() {
+                        Some(value) => {
+                            assign_env_values(env, symbol, value)?;
+                        }
+                        None => {
+                            bail!("Not enough values to fill-up all arguments",);
+                        }
+                    }
+                }
             }
         }
         (Expression::Symbol(name), value) => {
@@ -235,6 +251,9 @@ pub(crate) fn iamlisp_eval_next_input_expression(
                 .push(get_from_env(name, &current_stack_entry.env)?);
 
             stack.push_top(current_stack_entry);
+        }
+        expression => {
+            bail!("Invalid expression: {}", expression);
         }
     }
 

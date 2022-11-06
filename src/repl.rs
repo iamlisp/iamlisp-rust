@@ -129,6 +129,11 @@ mod tests {
         assert_eq!(eval("a", &env).unwrap(), "10");
         assert_eq!(eval("b", &env).unwrap(), "20");
         assert_eq!(eval("c", &env).unwrap(), "30");
+
+        eval("(def (d . e) (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("d", &env).unwrap(), "10");
+        assert_eq!(eval("e", &env).unwrap(), "(20 30)");
     }
 
     // #[test]
