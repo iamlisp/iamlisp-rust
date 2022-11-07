@@ -16,6 +16,56 @@ pub(crate) struct StackEntry {
 
 pub(crate) type CallStack = List<StackEntry>;
 
+fn assign_env_values(env: &mut Env, symbol: Expression, value: Expression) -> anyhow::Result<()> {
+    match (symbol, value) {
+        (Expression::List(symbols_list), Expression::List(values_list)) => {
+            let mut symbols_iter = symbols_list.into_iter();
+            let mut values_list = *values_list;
+
+            let mut after_dot = false;
+
+            while let Some(symbol) = symbols_iter.next() {
+                if after_dot {
+                    assign_env_values(env, symbol, values_list.into())?;
+
+                    if symbols_iter.next().is_some() {
+                        bail!("Rest argument can be only one");
+                    }
+
+                    return Ok(());
+                }
+
+                if matches!(symbol, Expression::Dot) {
+                    after_dot = true;
+                } else {
+                    match values_list.shift() {
+                        Some(value) => {
+                            assign_env_values(env, symbol, value)?;
+                        }
+                        None => {
+                            bail!("Not enough values to fill-up all arguments",);
+                        }
+                    }
+                }
+            }
+        }
+        (Expression::List(symbols_list), value) => {
+            bail!(
+                "Unable to destruct non-list to symbols list: {}",
+                symbols_list
+            );
+        }
+        (Expression::Symbol(name), value) => {
+            env.set(name, value);
+        }
+        (symbol, _) => {
+            bail!("{} - is not valid variable name", symbol);
+        }
+    }
+
+    Ok(())
+}
+
 fn iamlisp_is_variables_definition(stack_entry: &StackEntry) -> bool {
     let input_is_def = matches!(stack_entry.input.head(), Some(def_symbol!()));
     let output_is_def = matches!(stack_entry.output.head(), Some(def_symbol!()));
@@ -70,8 +120,8 @@ fn iamlisp_eval_variables_definition(
                 );
             }
         },
-        &[def_symbol!(), Expression::Symbol(name), value] => {
-            stack_entry.env.set(name, value.clone());
+        &[def_symbol!(), symbol, value] => {
+            assign_env_values(&mut stack_entry.env, symbol.clone(), value.clone())?;
             stack_entry.output = list![def_symbol!()];
         }
         _ => bail!(
@@ -81,8 +131,8 @@ fn iamlisp_eval_variables_definition(
     }
 
     match (stack_entry.input.shift(), stack_entry.input.shift()) {
-        (Some(Expression::Symbol(name)), Some(expr)) => {
-            stack_entry.output.push(Expression::Symbol(name));
+        (Some(symbol), Some(expr)) => {
+            stack_entry.output.push(symbol);
 
             iamlisp_eval_next_input_expression(&expr, stack_entry, stack)?;
         }
@@ -208,6 +258,9 @@ pub(crate) fn iamlisp_eval_next_input_expression(
 
             stack.push_top(current_stack_entry);
         }
+        expression => {
+            bail!("Invalid expression: {}", expression);
+        }
     }
 
     Ok(())
@@ -232,30 +285,13 @@ fn iamlisp_call_function(
             body,
         }) => {
             let mut env = env.child();
-            let mut values = List::clone(&args_values);
-            let mut body = List::clone(&body);
 
-            for arg_name in args_names.clone().into_iter() {
-                match arg_name {
-                    Expression::Symbol(name) => {
-                        let value = match values.shift() {
-                            Some(value) => value,
-                            None => {
-                                bail!(
-                                    "Lambda expects {} arguments but {} were provided",
-                                    args_names.len(),
-                                    args_values.len()
-                                )
-                            }
-                        };
+            let args_names = List::clone(args_names);
+            let args_values = List::clone(args_values);
 
-                        env.set(name, value);
-                    }
-                    _ => {
-                        bail!("Unexpected symbol in lambda arguments");
-                    }
-                }
-            }
+            assign_env_values(&mut env, args_names.into(), args_values.into())?;
+
+            let mut body = List::clone(body);
 
             body.push_top(begin_symbol!());
 

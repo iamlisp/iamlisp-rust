@@ -26,6 +26,7 @@ impl Parser {
                 Token::Float64(float) => Value::Float64(float).into(),
                 Token::Boolean(bool) => Value::Bool(bool).into(),
                 Token::Nil => Value::Nil.into(),
+                Token::Dot => Expression::Dot,
                 Token::LeftParen => self.parse_list()?.into(),
                 t => bail!("Compile error: unexpected token: {:?}", t),
             });
@@ -45,6 +46,7 @@ impl Parser {
                 Token::Float64(float) => Value::Float64(float).into(),
                 Token::Boolean(bool) => Value::Bool(bool).into(),
                 Token::Nil => Value::Nil.into(),
+                Token::Dot => Expression::Dot,
                 Token::LeftParen => self.parse_list()?.into(),
                 Token::RightParen => {
                     return Ok(expressions);

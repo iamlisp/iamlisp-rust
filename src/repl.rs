@@ -86,7 +86,7 @@ mod tests {
             ("f", Ok("(lambda (x y) (+ x y))")),
             ("(f 2 3)", Ok("5")),
             ("(f (f 2 6) 3)", Ok("11")),
-            ("(f)", Err("Lambda expects 2 arguments but 0 were provided")),
+            ("(f)", Err("Not enough values to fill-up all arguments")),
         ];
 
         for (program, expected_result) in table {
@@ -96,9 +96,18 @@ mod tests {
                 result,
                 expected_result
                     .map(|str| str.to_string())
-                    .map_err(|str| str.to_string())
+                    .map_err(|str| str.to_string()),
+                "{}",
+                program,
             );
         }
+
+        // Test varargs support
+        assert_eq!(eval("((lambda (x . ys) x) 1 2 3 4)", &env).unwrap(), "1");
+        assert_eq!(
+            eval("((lambda (x . ys) ys) 1 2 3 4)", &env).unwrap(),
+            "(2 3 4)"
+        );
     }
 
     #[test]
@@ -112,6 +121,37 @@ mod tests {
         assert_eq!(env.get("x"), None);
         assert_eq!(env.get("a"), None);
         assert_eq!(result, "10")
+    }
+
+    #[test]
+    fn test_def_expression() {
+        let env = create_env();
+
+        eval("(def x 10)", &env).unwrap();
+        eval("(def y (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("x", &env).unwrap(), "10");
+        assert_eq!(eval("y", &env).unwrap(), "(10 20 30)");
+
+        eval("(def (a b c) (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("a", &env).unwrap(), "10");
+        assert_eq!(eval("b", &env).unwrap(), "20");
+        assert_eq!(eval("c", &env).unwrap(), "30");
+
+        eval("(def (d . e) (list 10 20 30))", &env).unwrap();
+
+        assert_eq!(eval("d", &env).unwrap(), "10");
+        assert_eq!(eval("e", &env).unwrap(), "(20 30)");
+
+        assert_eq!(
+            eval("(def (d . e f) (list 10 20 30))", &env).err(),
+            Some("Rest argument can be only one".to_string())
+        );
+        assert_eq!(
+            eval("(def (d . e) 0)", &env).err(),
+            Some("Unable to destruct non-list to symbols list: (d . e)".to_string())
+        );
     }
 
     // #[test]
