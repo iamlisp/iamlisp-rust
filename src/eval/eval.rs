@@ -282,9 +282,10 @@ fn iamlisp_call_function(
 
             let args_names = List::clone(args_names);
             let args_values = List::clone(args_values);
-            let mut body = List::clone(&body);
 
             assign_env_values(&mut env, args_names.into(), args_values.into())?;
+
+            let mut body = List::clone(body);
 
             body.push_top(begin_symbol!());
 
