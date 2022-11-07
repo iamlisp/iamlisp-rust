@@ -147,7 +147,11 @@ mod tests {
         assert_eq!(
             eval("(def (d . e f) (list 10 20 30))", &env).err(),
             Some("Rest argument can be only one".to_string())
-        )
+        );
+        assert_eq!(
+            eval("(def (d . e) 0)", &env).err(),
+            Some("Unable to destruct non-list to symbols list: (d . e)".to_string())
+        );
     }
 
     // #[test]

@@ -49,6 +49,12 @@ fn assign_env_values(env: &mut Env, symbol: Expression, value: Expression) -> an
                 }
             }
         }
+        (Expression::List(symbols_list), value) => {
+            bail!(
+                "Unable to destruct non-list to symbols list: {}",
+                symbols_list
+            );
+        }
         (Expression::Symbol(name), value) => {
             env.set(name, value);
         }
