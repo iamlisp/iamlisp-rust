@@ -279,23 +279,12 @@ fn iamlisp_call_function(
             body,
         }) => {
             let mut env = env.child();
-            let mut values = List::clone(&args_values);
+
+            let args_names = List::clone(args_names);
+            let args_values = List::clone(args_values);
             let mut body = List::clone(&body);
 
-            for arg_name in args_names.clone().into_iter() {
-                let arg_value = match values.shift() {
-                    Some(value) => value,
-                    None => {
-                        bail!(
-                            "Lambda expects {} arguments but {} were provided",
-                            args_names.len(),
-                            args_values.len()
-                        )
-                    }
-                };
-
-                assign_env_values(&mut env, arg_name, arg_value)?;
-            }
+            assign_env_values(&mut env, args_names.into(), args_values.into())?;
 
             body.push_top(begin_symbol!());
 

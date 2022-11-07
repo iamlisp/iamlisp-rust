@@ -86,7 +86,7 @@ mod tests {
             ("f", Ok("(lambda (x y) (+ x y))")),
             ("(f 2 3)", Ok("5")),
             ("(f (f 2 6) 3)", Ok("11")),
-            ("(f)", Err("Lambda expects 2 arguments but 0 were provided")),
+            ("(f)", Err("Not enough values to fill-up all arguments")),
         ];
 
         for (program, expected_result) in table {
@@ -96,9 +96,18 @@ mod tests {
                 result,
                 expected_result
                     .map(|str| str.to_string())
-                    .map_err(|str| str.to_string())
+                    .map_err(|str| str.to_string()),
+                "{}",
+                program,
             );
         }
+
+        // Test varargs support
+        assert_eq!(eval("((lambda (x . ys) x) 1 2 3 4)", &env).unwrap(), "1");
+        assert_eq!(
+            eval("((lambda (x . ys) ys) 1 2 3 4)", &env).unwrap(),
+            "(2 3 4)"
+        );
     }
 
     #[test]
