@@ -76,6 +76,27 @@ mod tests {
     }
 
     #[test]
+    fn test_cmp() {
+        let table = vec![
+            ("(= 1 2)", "false"),
+            ("(= 2 2)", "true"),
+            ("(= true false)", "false"),
+            ("(= true true)", "true"),
+            ("(= 10.5 10.5)", "true"),
+            ("(= 10.5 0.5)", "false"),
+            (r#"(= "foo" "bar")"#, "false"),
+            (r#"(= "foo" "foo")"#, "true"),
+        ];
+        let env = create_env();
+
+        for (program, expected_result) in table {
+            let result = eval(program, &env).unwrap();
+
+            assert_eq!(result, expected_result);
+        }
+    }
+
+    #[test]
     fn test_lambda() {
         let env = create_env();
 
