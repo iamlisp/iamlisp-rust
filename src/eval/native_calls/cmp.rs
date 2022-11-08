@@ -7,15 +7,20 @@ fn bin_cmp<CMP>(cmp_fn: CMP, args: &List<Expression>) -> anyhow::Result<bool>
 where
     CMP: Fn(&Expression, &Expression) -> anyhow::Result<bool>,
 {
-    let mut args_cloned = List::clone(args);
+    if args.len() < 2 {
+        anyhow::bail!("Too few arguments given: {}", args);
+    }
 
-    let left_operand = args_cloned
-        .shift()
-        .ok_or_else(|| anyhow::anyhow!("Too few arguments given to =: {}", args))?;
+    let mut args_iter = args.iter().peekable();
 
-    while let Some(right_operand) = args_cloned.shift() {
-        if !cmp_fn(&left_operand, &right_operand)? {
-            return Ok(false);
+    while let Some(current_operand) = args_iter.next() {
+        match args_iter.peek() {
+            Some(next_operand) => {
+                if !cmp_fn(current_operand, next_operand)? {
+                    return Ok(false);
+                }
+            }
+            None => (),
         }
     }
 
